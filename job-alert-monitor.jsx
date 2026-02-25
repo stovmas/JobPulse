@@ -51,6 +51,13 @@ async function fetchWorkable(slug) {
   const d=await res.json();
   return (d.jobs||[]).map(j=>({id:`wk-${j.shortcode}`,title:j.title||"",company:slug,location:[j.city,j.country].filter(Boolean).join(", "),description:(j.description||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim(),url:j.url||`https://apply.workable.com/${slug}/j/${j.shortcode}`,postedAt:j.published_on||new Date().toISOString(),ats:"workable"}));
 }
+async function fetchScrape(sourceUrl) {
+  const res=await fetch(`/api/scrape?url=${encodeURIComponent(sourceUrl)}`);
+  if(!res.ok) throw new Error(`Scrape API HTTP ${res.status}`);
+  const d=await res.json();
+  if(d.error && (!d.jobs || d.jobs.length===0)) throw new Error(d.error);
+  return (d.jobs||[]);
+}
 async function fetchSourceJobs(s) {
   if(s.atsType==="greenhouse") return fetchGreenhouse(s.slug);
   if(s.atsType==="lever") return fetchLever(s.slug);
@@ -58,6 +65,7 @@ async function fetchSourceJobs(s) {
   if(s.atsType==="smartrecruiters") return fetchSmartRecruiters(s.slug);
   if(s.atsType==="recruitee") return fetchRecruitee(s.slug);
   if(s.atsType==="workable") return fetchWorkable(s.slug);
+  if(s.atsType==="scrape") return fetchScrape(s.slug);
   throw new Error(`${s.atsType} not supported`);
 }
 
@@ -101,6 +109,14 @@ async function autoDetectATS(raw) {
       // apply.workable.com/SLUG or SLUG.workable.com
       const slug = host.startsWith("apply") ? parts[0] : host.split(".")[0];
       if (slug) return { atsType:"workable", slug, label:"" };
+    }
+
+    // ── Known scrape-able custom job boards ──
+    const SCRAPE_BOARDS = [
+      { match: h => h === "jobs.netflix.com", label:"Netflix" },
+    ];
+    for (const board of SCRAPE_BOARDS) {
+      if (board.match(host)) return { atsType:"scrape", slug:maybeUrl, label:board.label };
     }
   } catch {}
 
@@ -256,12 +272,12 @@ export default function App() {
     setNewSrc(s=>({...s,detecting:true,detected:null,error:null}));
     const result=await autoDetectATS(newSrc.input.trim());
     if(result) setNewSrc(s=>({...s,detecting:false,detected:result,error:null}));
-    else setNewSrc(s=>({...s,detecting:false,detected:null,error:"Not found on Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, or Workable. The company may use Workday or iCIMS which require credentials and can't be auto-fetched."}));
+    else setNewSrc(s=>({...s,detecting:false,detected:null,error:"Not found on Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, Workable, or any supported custom board. The company may use Workday or iCIMS which require credentials and can't be auto-fetched."}));
   };
   const resetSrcDialog=()=>setNewSrc({input:"",label:"",detecting:false,detected:null,error:null});
   const doAddSrc=()=>{
     if(!newSrc.detected) return;
-    const s={id:`s${Date.now()}`,...newSrc.detected,label:newSrc.label||newSrc.detected.slug,addedAt:new Date().toISOString()};
+    const s={id:`s${Date.now()}`,...newSrc.detected,label:newSrc.label||newSrc.detected.label||newSrc.detected.slug,addedAt:new Date().toISOString()};
     upTab("sources",[...(activeTab?.sources||[]),s]);
     resetSrcDialog();setAddSrc(false);setTimeout(runPoll,400);
   };
@@ -407,7 +423,7 @@ export default function App() {
                 ):(activeTab?.sources||[]).map(s=>{
                   const jobs=live[s.id],cnt=jobs?.filter(j=>matchJob(j,activeTab.keywords||[]).matched).length??null;
                   const err=poll.errors.find(e=>e.id===s.id);
-                  const ATS_COLORS={greenhouse:"#3a7a3a",lever:"#1a4fa0",ashby:"#a04040",smartrecruiters:"#c87800",recruitee:"#5a3a8a",workable:"#1a7a7a"};
+                  const ATS_COLORS={greenhouse:"#3a7a3a",lever:"#1a4fa0",ashby:"#a04040",smartrecruiters:"#c87800",recruitee:"#5a3a8a",workable:"#1a7a7a",scrape:"#b00010"};
                   const col=ATS_COLORS[s.atsType]||"#808080";
                   const displayName=s.label||s.companyName||s.slug;
                   return (
@@ -663,7 +679,7 @@ export default function App() {
                   <Inp value={newSrc.input} onChange={e=>setNewSrc(s=>({...s,input:e.target.value,detected:null,error:null}))} placeholder="e.g. jobs.lever.co/netflix  or  anthropic" style={{flex:1}}/>
                   <Btn primary onClick={detectSrc} disabled={!newSrc.input.trim()||newSrc.detecting}>{newSrc.detecting?"…":"Detect"}</Btn>
                 </div>
-                <div style={{color:"#808080",marginTop:4}}>Auto-detects: Greenhouse · Lever · Ashby · SmartRecruiters · Recruitee · Workable</div>
+                <div style={{color:"#808080",marginTop:4}}>Auto-detects: Greenhouse · Lever · Ashby · SmartRecruiters · Recruitee · Workable · Custom (Netflix…)</div>
               </label>
 
               {newSrc.detecting&&(
@@ -678,7 +694,7 @@ export default function App() {
               {newSrc.error&&(
                 <div style={{background:"#fff0f0",border:"1px solid #cc0000",padding:"8px 10px",color:"#555",lineHeight:1.6}}>
                   <b style={{color:"#cc0000"}}>⚠ Not found on any supported platform.</b><br/>
-                  This company likely uses Workday or iCIMS, which require credentials and have no public API. Try setting up a job alert directly on their careers page or on LinkedIn.
+                  This company likely uses Workday or iCIMS, which require credentials and have no public API. Supported custom boards: Netflix (jobs.netflix.com). Try setting up a job alert directly on their careers page or on LinkedIn.
                 </div>
               )}
 
