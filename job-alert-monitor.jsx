@@ -225,6 +225,7 @@ export default function App() {
   const [locationColFilter,setLocationColFilter] = useState(new Set()); // column dropdown filter
   const [showCompanyDd,setShowCompanyDd] = useState(false); // dropdown visibility
   const [showLocationDd,setShowLocationDd] = useState(false); // dropdown visibility
+  const [excludeFilter,setExcludeFilter] = useState(""); // title exclusion string
   const [page,setPage] = useState(0);
   const PAGE_SIZE = 50;
   const [newSrc,setNewSrc] = useState({input:"",label:"",detecting:false,detected:null,error:null});
@@ -295,7 +296,11 @@ export default function App() {
   const colFiltered = locFiltered
     .filter(j=>companyFilter.size===0||companyFilter.has(j.company))
     .filter(j=>locationColFilter.size===0||locationColFilter.has(j.location||""));
-  const filtered = colFiltered;
+  // Title exclusion filter
+  const excludeTokens = excludeFilter.split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const filtered = excludeTokens.length
+    ? colFiltered.filter(j=>!excludeTokens.some(tok=>(j.title||"").toLowerCase().includes(tok)))
+    : colFiltered;
 
   // Unique values for dropdown filters
   const uniqueCompanies = [...new Set(locFiltered.map(j=>j.company))].sort();
@@ -306,7 +311,7 @@ export default function App() {
   const paginated = filtered.slice(safePage*PAGE_SIZE, (safePage+1)*PAGE_SIZE);
 
   // Reset page when tab or filter changes
-  useEffect(()=>setPage(0),[tabId, matchFilter, locationKeywords.length, companyFilter.size, locationColFilter.size]);
+  useEffect(()=>setPage(0),[tabId, matchFilter, locationKeywords.length, companyFilter.size, locationColFilter.size, excludeFilter]);
   // Close dropdowns on outside click
   useEffect(()=>{
     const handler=e=>{
@@ -548,10 +553,20 @@ export default function App() {
                     {label}
                   </label>
                 ))}
+                <div style={{width:"1px",background:"#a0a0a0",alignSelf:"stretch",margin:"0 2px"}}/>
+                <span style={{color:"#444"}}>🚫 Exclude:</span>
+                <input
+                  type="text"
+                  value={excludeFilter}
+                  onChange={e=>setExcludeFilter(e.target.value)}
+                  placeholder="ios, android, staff…"
+                  style={{padding:"1px 5px",border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",width:160,fontSize:12}}
+                />
+                {excludeFilter&&<button onClick={()=>setExcludeFilter("")} style={{padding:"0 5px",fontSize:11,cursor:"pointer"}}>✕</button>}
                 <div style={{flex:1}}/>
                 <span style={{color:"#555"}}>
                   {filtered.length} result{filtered.length!==1?"s":""}
-                  {(matchFilter!=="all"||locationKeywords.length||companyFilter.size||locationColFilter.size)&&<span style={{color:"#808080"}}> (filtered from {matched.length})</span>}
+                  {(matchFilter!=="all"||locationKeywords.length||companyFilter.size||locationColFilter.size||excludeFilter)&&<span style={{color:"#808080"}}> (filtered from {matched.length})</span>}
                 </span>
               </div>
 
@@ -631,7 +646,7 @@ export default function App() {
                 {(activeTab?.sources||[]).length===0?(
                   <div style={{padding:40,textAlign:"center",color:"#808080"}}><div style={{fontSize:48,marginBottom:10}}>🏢</div>Add companies to start monitoring jobs.</div>
                 ):filtered.length===0?(
-                  <div style={{padding:40,textAlign:"center",color:"#808080"}}><div style={{fontSize:48,marginBottom:10}}>{poll.running?"⏳":"🔍"}</div>{poll.running?"Fetching jobs…":matched.length>0?"No jobs match the current filters. Try clearing location keywords, column filters, or changing the match type.":"No matches found. Try broader keywords or click Refresh."}</div>
+                  <div style={{padding:40,textAlign:"center",color:"#808080"}}><div style={{fontSize:48,marginBottom:10}}>{poll.running?"⏳":"🔍"}</div>{poll.running?"Fetching jobs…":matched.length>0?"No jobs match the current filters. Try clearing location keywords, column filters, exclude filter, or changing the match type.":"No matches found. Try broader keywords or click Refresh."}</div>
                 ):paginated.map((job,i)=>{
                   const pay=extractPay(job);
                   return (
@@ -798,7 +813,7 @@ export default function App() {
           {poll.running?"🔄 Fetching jobs from all sources…":poll.last?`✅ Last polled: ${ago(poll.last)}`:"Ready — add companies and click Refresh Now"}
         </div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{(activeTab?.sources||[]).length} source{(activeTab?.sources||[]).length!==1?"s":""}</div>
-        <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{matched.length} match{matched.length!==1?"es":""}{(matchFilter!=="all"||locationKeywords.length||companyFilter.size||locationColFilter.size)?` · ${filtered.length} shown`:""}</div>
+        <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{matched.length} match{matched.length!==1?"es":""}{(matchFilter!=="all"||locationKeywords.length||companyFilter.size||locationColFilter.size||excludeFilter)?` · ${filtered.length} shown`:""}</div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>💾 {lsKB}</div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{perm==="granted"?"🔔 Notifications on":"🔕 Notifications off"}</div>
       </div>
