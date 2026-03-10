@@ -258,9 +258,9 @@ export default function App() {
   const matchFiltered = matchFilter==="title" ? matched.filter(j=>j.titleMatches.length>0)
                       : matchFilter==="desc"  ? matched.filter(j=>j.descMatches.length>0&&j.titleMatches.length===0)
                       : matched;
-  const locationQuery = locationFilter.trim().toLowerCase();
-  const filtered = locationQuery
-    ? matchFiltered.filter(j=>(j.location||"").toLowerCase().includes(locationQuery))
+  const locationTokens = locationFilter.split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const filtered = locationTokens.length
+    ? matchFiltered.filter(j=>locationTokens.some(tok=>(j.location||"").toLowerCase().includes(tok)))
     : matchFiltered;
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages-1);
@@ -487,7 +487,7 @@ export default function App() {
                   type="text"
                   value={locationFilter}
                   onChange={e=>setLocationFilter(e.target.value)}
-                  placeholder="e.g. Remote, New York, London"
+                  placeholder="Remote, New York… (comma-separated)"
                   style={{padding:"1px 5px",border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",width:180,fontSize:12}}
                 />
                 {locationFilter&&<button onClick={()=>setLocationFilter("")} style={{padding:"0 5px",fontSize:11,cursor:"pointer"}}>✕</button>}
