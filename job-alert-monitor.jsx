@@ -195,6 +195,7 @@ export default function App() {
   const [addTab,setAddTab] = useState(false);
   const [editKw,setEditKw] = useState(false);
   const [matchFilter,setMatchFilter] = useState("all"); // "all" | "title" | "desc"
+  const [locationFilter,setLocationFilter] = useState(""); // geo filter string
   const [page,setPage] = useState(0);
   const PAGE_SIZE = 50;
   const [newSrc,setNewSrc] = useState({input:"",label:"",detecting:false,detected:null,error:null});
@@ -254,15 +255,19 @@ export default function App() {
   const tabJobs=(activeTab?.sources||[]).flatMap(s=>live[s.id]||[]);
   const matched=tabJobs.map(j=>({...j,...matchJob(j,activeTab?.keywords||[])})).filter(j=>j.matched).sort((a,b)=>new Date(b.postedAt)-new Date(a.postedAt));
 
-  const filtered = matchFilter==="title" ? matched.filter(j=>j.titleMatches.length>0)
-                 : matchFilter==="desc"  ? matched.filter(j=>j.descMatches.length>0&&j.titleMatches.length===0)
-                 : matched;
+  const matchFiltered = matchFilter==="title" ? matched.filter(j=>j.titleMatches.length>0)
+                      : matchFilter==="desc"  ? matched.filter(j=>j.descMatches.length>0&&j.titleMatches.length===0)
+                      : matched;
+  const locationQuery = locationFilter.trim().toLowerCase();
+  const filtered = locationQuery
+    ? matchFiltered.filter(j=>(j.location||"").toLowerCase().includes(locationQuery))
+    : matchFiltered;
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages-1);
   const paginated = filtered.slice(safePage*PAGE_SIZE, (safePage+1)*PAGE_SIZE);
 
   // Reset page when tab or filter changes
-  useEffect(()=>setPage(0),[tabId, matchFilter]);
+  useEffect(()=>setPage(0),[tabId, matchFilter, locationFilter]);
 
   const upTab=(f,v)=>save({...state,tabs:state.tabs.map(t=>t.id===tabId?{...t,[f]:v}:t)});
   const upNotif=p=>save({...state,notifications:{...state.notifications,...p}});
@@ -468,7 +473,7 @@ export default function App() {
             <div style={{display:"flex",flexDirection:"column",overflow:"hidden"}}>
 
               {/* Filter bar */}
-              <div style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"3px 6px",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+              <div style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"3px 6px",display:"flex",alignItems:"center",gap:8,flexShrink:0,flexWrap:"wrap"}}>
                 <span style={{color:"#444",marginRight:2}}>Show:</span>
                 {[["all","All Matches"],["title","🏷 Title Match Only"],["desc","📄 Desc Match Only"]].map(([val,label])=>(
                   <label key={val} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer"}}>
@@ -476,10 +481,20 @@ export default function App() {
                     {label}
                   </label>
                 ))}
+                <div style={{width:"1px",background:"#a0a0a0",alignSelf:"stretch",margin:"0 2px"}}/>
+                <span style={{color:"#444"}}>📍 Location:</span>
+                <input
+                  type="text"
+                  value={locationFilter}
+                  onChange={e=>setLocationFilter(e.target.value)}
+                  placeholder="e.g. Remote, New York, London"
+                  style={{padding:"1px 5px",border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",width:180,fontSize:12}}
+                />
+                {locationFilter&&<button onClick={()=>setLocationFilter("")} style={{padding:"0 5px",fontSize:11,cursor:"pointer"}}>✕</button>}
                 <div style={{flex:1}}/>
                 <span style={{color:"#555"}}>
                   {filtered.length} result{filtered.length!==1?"s":""}
-                  {matchFilter!=="all"&&<span style={{color:"#808080"}}> (filtered from {matched.length})</span>}
+                  {(matchFilter!=="all"||locationFilter)&&<span style={{color:"#808080"}}> (filtered from {matched.length})</span>}
                 </span>
               </div>
 
@@ -495,7 +510,7 @@ export default function App() {
                 {(activeTab?.sources||[]).length===0?(
                   <div style={{padding:40,textAlign:"center",color:"#808080"}}><div style={{fontSize:48,marginBottom:10}}>🏢</div>Add companies to start monitoring jobs.</div>
                 ):filtered.length===0?(
-                  <div style={{padding:40,textAlign:"center",color:"#808080"}}><div style={{fontSize:48,marginBottom:10}}>{poll.running?"⏳":"🔍"}</div>{poll.running?"Fetching jobs…":matched.length>0?"No jobs match the current filter.":"No matches found. Try broader keywords or click Refresh."}</div>
+                  <div style={{padding:40,textAlign:"center",color:"#808080"}}><div style={{fontSize:48,marginBottom:10}}>{poll.running?"⏳":"🔍"}</div>{poll.running?"Fetching jobs…":matched.length>0?"No jobs match the current filter. Try clearing the location filter or changing the match type.":"No matches found. Try broader keywords or click Refresh."}</div>
                 ):paginated.map((job,i)=>(
                   <div key={job.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 160px 80px",borderBottom:"1px solid #e8e4dc",background:i%2===0?"#fff":"#f4f2ec",cursor:"default"}}
                     onMouseEnter={e=>e.currentTarget.style.background="#316ac5"}
@@ -658,7 +673,7 @@ export default function App() {
           {poll.running?"🔄 Fetching jobs from all sources…":poll.last?`✅ Last polled: ${ago(poll.last)}`:"Ready — add companies and click Refresh Now"}
         </div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{(activeTab?.sources||[]).length} source{(activeTab?.sources||[]).length!==1?"s":""}</div>
-        <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{matched.length} match{matched.length!==1?"es":""}{matchFilter!=="all"?` · ${filtered.length} shown`:""}</div>
+        <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{matched.length} match{matched.length!==1?"es":""}{(matchFilter!=="all"||locationFilter)?` · ${filtered.length} shown`:""}</div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>💾 {lsKB}</div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{perm==="granted"?"🔔 Notifications on":"🔕 Notifications off"}</div>
       </div>
