@@ -19,37 +19,45 @@ async function fetchGreenhouse(slug) {
   const res=await fetch(`https://boards-api.greenhouse.io/v1/boards/${slug}/jobs?content=true`);
   if(!res.ok) throw new Error(`HTTP ${res.status}`);
   const d=await res.json();
-  return (d.jobs||[]).map(j=>({id:`gh-${j.id}`,title:j.title||"",company:slug,location:j.location?.name||"",description:j.content?j.content.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim():"",url:j.absolute_url||"",postedAt:j.updated_at||new Date().toISOString(),ats:"greenhouse"}));
+  return (d.jobs||[]).map(j=>{
+    const pay=j.pay_input_ranges?.[0];
+    const salary=pay?`$${Math.round((pay.min_cents||0)/100000)}k–$${Math.round((pay.max_cents||0)/100000)}k`:"";
+    return {id:`gh-${j.id}`,title:j.title||"",company:slug,location:j.location?.name||"",description:j.content?j.content.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim():"",url:j.absolute_url||"",postedAt:j.updated_at||new Date().toISOString(),ats:"greenhouse",salary};
+  });
 }
 async function fetchLever(slug) {
   const res=await fetch(`https://api.lever.co/v0/postings/${slug}?mode=json`);
   if(!res.ok) throw new Error(`HTTP ${res.status}`);
   const d=await res.json();
-  return (Array.isArray(d)?d:[]).map(j=>({id:`lv-${j.id}`,title:j.text||"",company:slug,location:j.categories?.location||"",description:j.descriptionPlain||"",url:j.hostedUrl||"",postedAt:j.createdAt?new Date(j.createdAt).toISOString():new Date().toISOString(),ats:"lever"}));
+  return (Array.isArray(d)?d:[]).map(j=>({id:`lv-${j.id}`,title:j.text||"",company:slug,location:j.categories?.location||"",description:j.descriptionPlain||"",url:j.hostedUrl||"",postedAt:j.createdAt?new Date(j.createdAt).toISOString():new Date().toISOString(),ats:"lever",salary:j.salaryRange?`${j.salaryRange.min||""}–${j.salaryRange.max||""}`:""}));
 }
 async function fetchAshby(slug) {
   const res=await fetch(`https://api.ashbyhq.com/posting-api/job-board/${slug}`);
   if(!res.ok) throw new Error(`HTTP ${res.status}`);
   const d=await res.json();
-  return (d.jobPostings||[]).map(j=>({id:`ash-${j.id}`,title:j.title||"",company:slug,location:j.locationName||"",description:(j.descriptionSocial||j.descriptionHtml||"").replace(/<[^>]+>/g," "),url:j.jobPostingUrl||"",postedAt:j.publishedAt||new Date().toISOString(),ats:"ashby"}));
+  return (d.jobPostings||[]).map(j=>({id:`ash-${j.id}`,title:j.title||"",company:slug,location:j.locationName||"",description:(j.descriptionSocial||j.descriptionHtml||"").replace(/<[^>]+>/g," "),url:j.jobPostingUrl||"",postedAt:j.publishedAt||new Date().toISOString(),ats:"ashby",salary:j.compensationTierSummary||""}));
 }
 async function fetchSmartRecruiters(slug) {
   const res=await fetch(`https://api.smartrecruiters.com/v1/companies/${slug}/postings?limit=100`);
   if(!res.ok) throw new Error(`HTTP ${res.status}`);
   const d=await res.json();
-  return (d.content||[]).map(j=>({id:`sr-${j.uuid}`,title:j.name||"",company:slug,location:[j.location?.city,j.location?.country].filter(Boolean).join(", "),description:(j.jobAd?.sections?.jobDescription?.text||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim(),url:`https://jobs.smartrecruiters.com/${slug}/${j.uuid}`,postedAt:j.releasedDate||new Date().toISOString(),ats:"smartrecruiters"}));
+  return (d.content||[]).map(j=>{
+    const comp=j.compensation;
+    const salary=comp?`$${Math.round((comp.min||0)/1000)}k–$${Math.round((comp.max||0)/1000)}k`:"";
+    return {id:`sr-${j.uuid}`,title:j.name||"",company:slug,location:[j.location?.city,j.location?.country].filter(Boolean).join(", "),description:(j.jobAd?.sections?.jobDescription?.text||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim(),url:`https://jobs.smartrecruiters.com/${slug}/${j.uuid}`,postedAt:j.releasedDate||new Date().toISOString(),ats:"smartrecruiters",salary};
+  });
 }
 async function fetchRecruitee(slug) {
   const res=await fetch(`https://${slug}.recruitee.com/api/offers/?scope=published`);
   if(!res.ok) throw new Error(`HTTP ${res.status}`);
   const d=await res.json();
-  return (d.offers||[]).map(j=>({id:`re-${j.id}`,title:j.title||"",company:slug,location:j.city||j.country||"",description:(j.description||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim(),url:j.careers_url||`https://${slug}.recruitee.com/o/${j.slug}`,postedAt:j.published_at||new Date().toISOString(),ats:"recruitee"}));
+  return (d.offers||[]).map(j=>({id:`re-${j.id}`,title:j.title||"",company:slug,location:j.city||j.country||"",description:(j.description||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim(),url:j.careers_url||`https://${slug}.recruitee.com/o/${j.slug}`,postedAt:j.published_at||new Date().toISOString(),ats:"recruitee",salary:j.salary||""}));
 }
 async function fetchWorkable(slug) {
   const res=await fetch(`https://apply.workable.com/api/v1/widget/jobs/${slug}`);
   if(!res.ok) throw new Error(`HTTP ${res.status}`);
   const d=await res.json();
-  return (d.jobs||[]).map(j=>({id:`wk-${j.shortcode}`,title:j.title||"",company:slug,location:[j.city,j.country].filter(Boolean).join(", "),description:(j.description||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim(),url:j.url||`https://apply.workable.com/${slug}/j/${j.shortcode}`,postedAt:j.published_on||new Date().toISOString(),ats:"workable"}));
+  return (d.jobs||[]).map(j=>({id:`wk-${j.shortcode}`,title:j.title||"",company:slug,location:[j.city,j.country].filter(Boolean).join(", "),description:(j.description||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim(),url:j.url||`https://apply.workable.com/${slug}/j/${j.shortcode}`,postedAt:j.published_on||new Date().toISOString(),ats:"workable",salary:""}));
 }
 async function fetchScrape(sourceUrl) {
   const res=await fetch(`/api/scrape?url=${encodeURIComponent(sourceUrl)}`);
@@ -156,6 +164,22 @@ async function sendSMS(n,msg) {
 }
 function bNotify(title,body) { if(typeof Notification!=="undefined"&&Notification.permission==="granted") new Notification(title,{body}); }
 
+function extractPay(job) {
+  if(job.salary) return job.salary;
+  const txt = (job.title+" "+job.description).replace(/,/g,"");
+  const m = txt.match(/\$\s*([\d.]+)\s*[kK]?\s*[-–—to]+\s*\$?\s*([\d.]+)\s*[kK]?/);
+  if(m) {
+    let lo=parseFloat(m[1]), hi=parseFloat(m[2]);
+    if(lo<1000) lo*=1000; if(hi<1000) hi*=1000;
+    return `$${Math.round(lo/1000)}k–$${Math.round(hi/1000)}k`;
+  }
+  const s = txt.match(/\$\s*([\d.]+)\s*[kK]/);
+  if(s) return `$${s[1]}k`;
+  const hr = txt.match(/\$\s*([\d.]+)\s*[-–—to\/]+\s*\$?\s*([\d.]+)\s*(?:per\s*hour|\/\s*hr|\/\s*hour|hr)/i);
+  if(hr) return `$${hr[1]}–$${hr[2]}/hr`;
+  return "";
+}
+
 function ago(iso) {
   const d=Date.now()-new Date(iso).getTime(),m=Math.floor(d/60000),h=Math.floor(d/3600000),dy=Math.floor(d/86400000);
   if(m<1) return "just now"; if(m<60) return `${m}m ago`; if(h<24) return `${h}h ago`; return `${dy}d ago`;
@@ -195,7 +219,12 @@ export default function App() {
   const [addTab,setAddTab] = useState(false);
   const [editKw,setEditKw] = useState(false);
   const [matchFilter,setMatchFilter] = useState("all"); // "all" | "title" | "desc"
-  const [locationFilter,setLocationFilter] = useState(""); // geo filter string
+  const [locationKeywords,setLocationKeywords] = useState([]); // location filter keywords
+  const [editLocKw,setEditLocKw] = useState(false); // editing location keywords
+  const [companyFilter,setCompanyFilter] = useState(new Set()); // column dropdown filter
+  const [locationColFilter,setLocationColFilter] = useState(new Set()); // column dropdown filter
+  const [showCompanyDd,setShowCompanyDd] = useState(false); // dropdown visibility
+  const [showLocationDd,setShowLocationDd] = useState(false); // dropdown visibility
   const [page,setPage] = useState(0);
   const PAGE_SIZE = 50;
   const [newSrc,setNewSrc] = useState({input:"",label:"",detecting:false,detected:null,error:null});
@@ -258,16 +287,34 @@ export default function App() {
   const matchFiltered = matchFilter==="title" ? matched.filter(j=>j.titleMatches.length>0)
                       : matchFilter==="desc"  ? matched.filter(j=>j.descMatches.length>0&&j.titleMatches.length===0)
                       : matched;
-  const locationTokens = locationFilter.split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
-  const filtered = locationTokens.length
-    ? matchFiltered.filter(j=>locationTokens.some(tok=>(j.location||"").toLowerCase().includes(tok)))
+  // Location keyword filter (left sidebar)
+  const locFiltered = locationKeywords.length
+    ? matchFiltered.filter(j=>locationKeywords.some(tok=>(j.location||"").toLowerCase().includes(tok.toLowerCase())))
     : matchFiltered;
+  // Column dropdown filters (Company, Location)
+  const colFiltered = locFiltered
+    .filter(j=>companyFilter.size===0||companyFilter.has(j.company))
+    .filter(j=>locationColFilter.size===0||locationColFilter.has(j.location||""));
+  const filtered = colFiltered;
+
+  // Unique values for dropdown filters
+  const uniqueCompanies = [...new Set(locFiltered.map(j=>j.company))].sort();
+  const uniqueLocations = [...new Set(locFiltered.map(j=>j.location||""))].sort();
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages-1);
   const paginated = filtered.slice(safePage*PAGE_SIZE, (safePage+1)*PAGE_SIZE);
 
   // Reset page when tab or filter changes
-  useEffect(()=>setPage(0),[tabId, matchFilter, locationFilter]);
+  useEffect(()=>setPage(0),[tabId, matchFilter, locationKeywords.length, companyFilter.size, locationColFilter.size]);
+  // Close dropdowns on outside click
+  useEffect(()=>{
+    const handler=e=>{
+      if(!e.target.closest('.col-dropdown')){setShowCompanyDd(false);setShowLocationDd(false);}
+    };
+    document.addEventListener("mousedown",handler);
+    return()=>document.removeEventListener("mousedown",handler);
+  },[]);
 
   const upTab=(f,v)=>save({...state,tabs:state.tabs.map(t=>t.id===tabId?{...t,[f]:v}:t)});
   const upNotif=p=>save({...state,notifications:{...state.notifications,...p}});
@@ -467,6 +514,26 @@ export default function App() {
                     onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){upTab("keywords",[...(activeTab.keywords||[]),e.target.value.trim()]);e.target.value="";}}}/>}
                 </div>
               </Grp>
+
+              <Grp title="📍 Location Filter">
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{color:"#555",fontSize:10}}>Filter results by location keywords</span>
+                  <Btn small onClick={()=>setEditLocKw(!editLocKw)}>{editLocKw?"✓ Done":"✏ Edit"}</Btn>
+                </div>
+                <div className="inset" style={{padding:5,minHeight:36,background:"#fff",marginBottom:editLocKw?6:0}}>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                    {locationKeywords.map((kw,i)=>(
+                      <span key={i} style={{background:"#3a7a3a",color:"#fff",padding:"1px 7px",display:"inline-flex",alignItems:"center",gap:3,fontSize:11}}>
+                        {kw}
+                        {editLocKw&&<button onClick={()=>setLocationKeywords(locationKeywords.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:"#ccffcc",cursor:"pointer",padding:0,fontSize:12,lineHeight:1}}>✕</button>}
+                      </span>
+                    ))}
+                    {!locationKeywords.length&&<span style={{color:"#a0a0a0",fontStyle:"italic"}}>No filter — showing all locations</span>}
+                  </div>
+                  {editLocKw&&<input className="inset" placeholder="e.g. Remote, New York + Enter" style={{marginTop:6,width:"100%",padding:"2px 5px"}}
+                    onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){setLocationKeywords([...locationKeywords,e.target.value.trim()]);e.target.value="";}}}/>}
+                </div>
+              </Grp>
             </div>
 
             {/* Right: job results */}
@@ -481,28 +548,82 @@ export default function App() {
                     {label}
                   </label>
                 ))}
-                <div style={{width:"1px",background:"#a0a0a0",alignSelf:"stretch",margin:"0 2px"}}/>
-                <span style={{color:"#444"}}>📍 Location:</span>
-                <input
-                  type="text"
-                  value={locationFilter}
-                  onChange={e=>setLocationFilter(e.target.value)}
-                  placeholder="Remote, New York… (comma-separated)"
-                  style={{padding:"1px 5px",border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",width:180,fontSize:12}}
-                />
-                {locationFilter&&<button onClick={()=>setLocationFilter("")} style={{padding:"0 5px",fontSize:11,cursor:"pointer"}}>✕</button>}
                 <div style={{flex:1}}/>
                 <span style={{color:"#555"}}>
                   {filtered.length} result{filtered.length!==1?"s":""}
-                  {(matchFilter!=="all"||locationFilter)&&<span style={{color:"#808080"}}> (filtered from {matched.length})</span>}
+                  {(matchFilter!=="all"||locationKeywords.length||companyFilter.size||locationColFilter.size)&&<span style={{color:"#808080"}}> (filtered from {matched.length})</span>}
                 </span>
               </div>
 
-              {/* Column headers */}
-              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 160px 80px",background:"linear-gradient(to bottom,#f0ede4,#dedad0)",borderBottom:"1px solid #a0a0a0",flexShrink:0}}>
-                {["Job Title","Company","Location","Match Type","Age"].map((h,i)=>(
-                  <div key={h} style={{padding:"3px 8px",borderRight:i<4?"1px solid #a0a0a0":"none",fontWeight:"bold",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{h}</div>
-                ))}
+              {/* Column headers with Excel-style dropdown filters */}
+              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 120px 140px 80px",background:"linear-gradient(to bottom,#f0ede4,#dedad0)",borderBottom:"1px solid #a0a0a0",flexShrink:0}}>
+                <div style={{padding:"3px 8px",borderRight:"1px solid #a0a0a0",fontWeight:"bold",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>Job Title</div>
+
+                {/* Company dropdown filter */}
+                <div className="col-dropdown" style={{padding:"3px 8px",borderRight:"1px solid #a0a0a0",fontWeight:"bold",position:"relative",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}
+                  onClick={()=>{setShowCompanyDd(!showCompanyDd);setShowLocationDd(false);}}>
+                  <span style={{overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>Company{companyFilter.size>0?` (${companyFilter.size})`:""}</span>
+                  <span style={{fontSize:8,marginLeft:4,color:companyFilter.size>0?"#316ac5":"#808080"}}>▼</span>
+                  {showCompanyDd&&(
+                    <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:50,background:"#fff",border:"1px solid #808080",boxShadow:"2px 2px 4px rgba(0,0,0,.2)",maxHeight:240,overflowY:"auto",minWidth:160}}
+                      onClick={e=>e.stopPropagation()}>
+                      <div style={{padding:"4px 8px",borderBottom:"1px solid #e0e0e0",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f0ede4"}}>
+                        <span style={{fontSize:10,color:"#555"}}>{uniqueCompanies.length} companies</span>
+                        {companyFilter.size>0&&<button onClick={()=>setCompanyFilter(new Set())} style={{background:"none",border:"none",color:"#316ac5",cursor:"pointer",fontSize:10,textDecoration:"underline"}}>Clear</button>}
+                      </div>
+                      {uniqueCompanies.map(c=>(
+                        <label key={c} style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",cursor:"pointer",fontSize:11,borderBottom:"1px solid #f0f0f0"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="#e8e4dc"}
+                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <input type="checkbox" checked={companyFilter.size===0||companyFilter.has(c)}
+                            onChange={e=>{
+                              const next=new Set(companyFilter);
+                              if(companyFilter.size===0){uniqueCompanies.forEach(x=>next.add(x));next.delete(c);}
+                              else if(e.target.checked){next.add(c);if(next.size===uniqueCompanies.length)setCompanyFilter(new Set());else setCompanyFilter(next);return;}
+                              else{next.delete(c);}
+                              setCompanyFilter(next);
+                            }}/>
+                          {c}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Location dropdown filter */}
+                <div className="col-dropdown" style={{padding:"3px 8px",borderRight:"1px solid #a0a0a0",fontWeight:"bold",position:"relative",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}
+                  onClick={()=>{setShowLocationDd(!showLocationDd);setShowCompanyDd(false);}}>
+                  <span style={{overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>Location{locationColFilter.size>0?` (${locationColFilter.size})`:""}</span>
+                  <span style={{fontSize:8,marginLeft:4,color:locationColFilter.size>0?"#316ac5":"#808080"}}>▼</span>
+                  {showLocationDd&&(
+                    <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:50,background:"#fff",border:"1px solid #808080",boxShadow:"2px 2px 4px rgba(0,0,0,.2)",maxHeight:240,overflowY:"auto",minWidth:160}}
+                      onClick={e=>e.stopPropagation()}>
+                      <div style={{padding:"4px 8px",borderBottom:"1px solid #e0e0e0",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f0ede4"}}>
+                        <span style={{fontSize:10,color:"#555"}}>{uniqueLocations.length} locations</span>
+                        {locationColFilter.size>0&&<button onClick={()=>setLocationColFilter(new Set())} style={{background:"none",border:"none",color:"#316ac5",cursor:"pointer",fontSize:10,textDecoration:"underline"}}>Clear</button>}
+                      </div>
+                      {uniqueLocations.map(loc=>(
+                        <label key={loc||"(blank)"} style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",cursor:"pointer",fontSize:11,borderBottom:"1px solid #f0f0f0"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="#e8e4dc"}
+                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <input type="checkbox" checked={locationColFilter.size===0||locationColFilter.has(loc)}
+                            onChange={e=>{
+                              const next=new Set(locationColFilter);
+                              if(locationColFilter.size===0){uniqueLocations.forEach(x=>next.add(x));next.delete(loc);}
+                              else if(e.target.checked){next.add(loc);if(next.size===uniqueLocations.length)setLocationColFilter(new Set());else setLocationColFilter(next);return;}
+                              else{next.delete(loc);}
+                              setLocationColFilter(next);
+                            }}/>
+                          {loc||"(blank)"}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{padding:"3px 8px",borderRight:"1px solid #a0a0a0",fontWeight:"bold",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>Pay Range</div>
+                <div style={{padding:"3px 8px",borderRight:"1px solid #a0a0a0",fontWeight:"bold",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>Match Type</div>
+                <div style={{padding:"3px 8px",fontWeight:"bold",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>Age</div>
               </div>
 
               {/* Scrollable rows */}
@@ -510,9 +631,11 @@ export default function App() {
                 {(activeTab?.sources||[]).length===0?(
                   <div style={{padding:40,textAlign:"center",color:"#808080"}}><div style={{fontSize:48,marginBottom:10}}>🏢</div>Add companies to start monitoring jobs.</div>
                 ):filtered.length===0?(
-                  <div style={{padding:40,textAlign:"center",color:"#808080"}}><div style={{fontSize:48,marginBottom:10}}>{poll.running?"⏳":"🔍"}</div>{poll.running?"Fetching jobs…":matched.length>0?"No jobs match the current filter. Try clearing the location filter or changing the match type.":"No matches found. Try broader keywords or click Refresh."}</div>
-                ):paginated.map((job,i)=>(
-                  <div key={job.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 160px 80px",borderBottom:"1px solid #e8e4dc",background:i%2===0?"#fff":"#f4f2ec",cursor:"default"}}
+                  <div style={{padding:40,textAlign:"center",color:"#808080"}}><div style={{fontSize:48,marginBottom:10}}>{poll.running?"⏳":"🔍"}</div>{poll.running?"Fetching jobs…":matched.length>0?"No jobs match the current filters. Try clearing location keywords, column filters, or changing the match type.":"No matches found. Try broader keywords or click Refresh."}</div>
+                ):paginated.map((job,i)=>{
+                  const pay=extractPay(job);
+                  return (
+                  <div key={job.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 120px 140px 80px",borderBottom:"1px solid #e8e4dc",background:i%2===0?"#fff":"#f4f2ec",cursor:"default"}}
                     onMouseEnter={e=>e.currentTarget.style.background="#316ac5"}
                     onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#fff":"#f4f2ec"}>
                     <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",overflow:"hidden"}}>
@@ -524,6 +647,7 @@ export default function App() {
                     </div>
                     <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{job.company}</div>
                     <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:"#555"}}>{job.location}</div>
+                    <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:pay?"#008000":"#c0c0c0",fontSize:pay?11:10}}>{pay||"—"}</div>
                     <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",overflow:"hidden"}}>
                       {job.titleMatches.length>0&&<span style={{background:"#ddeeff",border:"1px solid #316ac5",color:"#316ac5",padding:"0 5px",fontSize:10,fontWeight:"bold",marginRight:3}}>TITLE</span>}
                       {job.descMatches.length>0&&<span style={{background:"#eee",border:"1px solid #808080",color:"#555",padding:"0 5px",fontSize:10}}>DESC</span>}
@@ -531,7 +655,8 @@ export default function App() {
                     </div>
                     <div style={{padding:"4px 8px",color:"#808080",whiteSpace:"nowrap"}}>{ago(job.postedAt)}</div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Pagination footer */}
@@ -673,7 +798,7 @@ export default function App() {
           {poll.running?"🔄 Fetching jobs from all sources…":poll.last?`✅ Last polled: ${ago(poll.last)}`:"Ready — add companies and click Refresh Now"}
         </div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{(activeTab?.sources||[]).length} source{(activeTab?.sources||[]).length!==1?"s":""}</div>
-        <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{matched.length} match{matched.length!==1?"es":""}{(matchFilter!=="all"||locationFilter)?` · ${filtered.length} shown`:""}</div>
+        <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{matched.length} match{matched.length!==1?"es":""}{(matchFilter!=="all"||locationKeywords.length||companyFilter.size||locationColFilter.size)?` · ${filtered.length} shown`:""}</div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>💾 {lsKB}</div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{perm==="granted"?"🔔 Notifications on":"🔕 Notifications off"}</div>
       </div>
