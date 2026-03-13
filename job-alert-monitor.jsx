@@ -180,6 +180,14 @@ function extractPay(job) {
   return "";
 }
 
+function parsePay(s) {
+  if(!s) return 0;
+  const m=s.match(/\$\s*([\d.]+)\s*k/i);
+  if(m) return parseFloat(m[1])*1000;
+  const h=s.match(/\$\s*([\d.]+)/);
+  return h?parseFloat(h[1]):0;
+}
+
 function ago(iso) {
   const d=Date.now()-new Date(iso).getTime(),m=Math.floor(d/60000),h=Math.floor(d/3600000),dy=Math.floor(d/86400000);
   if(m<1) return "just now"; if(m<60) return `${m}m ago`; if(h<24) return `${h}h ago`; return `${dy}d ago`;
@@ -226,6 +234,7 @@ export default function App() {
   const [showCompanyDd,setShowCompanyDd] = useState(false); // dropdown visibility
   const [showLocationDd,setShowLocationDd] = useState(false); // dropdown visibility
   const [locInput,setLocInput] = useState(""); // location filter input value
+  const [paySort,setPaySort] = useState(""); // "" | "asc" | "desc"
   const [page,setPage] = useState(0);
   const PAGE_SIZE = 50;
   const [newSrc,setNewSrc] = useState({input:"",label:"",detecting:false,detected:null,error:null});
@@ -298,7 +307,10 @@ export default function App() {
   const colFiltered = locFiltered
     .filter(j=>companyFilter.size===0||companyFilter.has(j.company))
     .filter(j=>locationColFilter.size===0||locationColFilter.has(j.location||""));
-  const filtered = colFiltered;
+  const filtered = paySort ? [...colFiltered].sort((a,b)=>{
+    const pa=parsePay(extractPay(a)), pb=parsePay(extractPay(b));
+    return paySort==="asc" ? pa-pb : pb-pa;
+  }) : colFiltered;
 
   // Unique values for dropdown filters
   const uniqueCompanies = [...new Set(locFiltered.map(j=>j.company))].sort();
@@ -651,7 +663,11 @@ export default function App() {
                   )}
                 </div>
 
-                <div style={{padding:"3px 8px",borderRight:"1px solid #a0a0a0",fontWeight:"bold",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>Pay Range</div>
+                <div style={{padding:"3px 8px",borderRight:"1px solid #a0a0a0",fontWeight:"bold",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}
+                  onClick={()=>setPaySort(paySort===""?"desc":paySort==="desc"?"asc":"")}>
+                  <span>Pay Range</span>
+                  <span style={{fontSize:8,marginLeft:4,color:paySort?"#316ac5":"#808080"}}>{paySort==="asc"?"▲":paySort==="desc"?"▼":"▼"}</span>
+                </div>
                 <div style={{padding:"3px 8px",borderRight:"1px solid #a0a0a0",fontWeight:"bold",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>Match Type</div>
                 <div style={{padding:"3px 8px",fontWeight:"bold",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>Age</div>
               </div>
