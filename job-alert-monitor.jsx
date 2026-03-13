@@ -569,7 +569,10 @@ export default function App() {
                       onClick={e=>e.stopPropagation()}>
                       <div style={{padding:"4px 8px",borderBottom:"1px solid #e0e0e0",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f0ede4"}}>
                         <span style={{fontSize:10,color:"#555"}}>{uniqueCompanies.length} companies</span>
-                        {companyFilter.size>0&&<button onClick={()=>setCompanyFilter(new Set())} style={{background:"none",border:"none",color:"#316ac5",cursor:"pointer",fontSize:10,textDecoration:"underline"}}>Clear</button>}
+                        <span style={{display:"flex",gap:6}}>
+                          <button onClick={()=>setCompanyFilter(new Set())} style={{background:"none",border:"none",color:"#316ac5",cursor:"pointer",fontSize:10,textDecoration:"underline"}}>All</button>
+                          <button onClick={()=>setCompanyFilter(new Set(["__none__"]))} style={{background:"none",border:"none",color:"#316ac5",cursor:"pointer",fontSize:10,textDecoration:"underline"}}>None</button>
+                        </span>
                       </div>
                       {uniqueCompanies.map(c=>(
                         <label key={c} style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",cursor:"pointer",fontSize:11,borderBottom:"1px solid #f0f0f0"}}
@@ -578,9 +581,10 @@ export default function App() {
                           <input type="checkbox" checked={companyFilter.size===0||companyFilter.has(c)}
                             onChange={e=>{
                               const next=new Set(companyFilter);
-                              if(companyFilter.size===0){uniqueCompanies.forEach(x=>next.add(x));next.delete(c);}
+                              next.delete("__none__");
+                              if(companyFilter.size===0||(companyFilter.size===1&&companyFilter.has("__none__"))){uniqueCompanies.forEach(x=>next.add(x));next.delete(c);}
                               else if(e.target.checked){next.add(c);if(next.size===uniqueCompanies.length)setCompanyFilter(new Set());else setCompanyFilter(next);return;}
-                              else{next.delete(c);}
+                              else{next.delete(c);if(next.size===0)next.add("__none__");}
                               setCompanyFilter(next);
                             }}/>
                           {c}
@@ -600,7 +604,10 @@ export default function App() {
                       onClick={e=>e.stopPropagation()}>
                       <div style={{padding:"4px 8px",borderBottom:"1px solid #e0e0e0",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f0ede4"}}>
                         <span style={{fontSize:10,color:"#555"}}>{uniqueLocations.length} locations</span>
-                        {locationColFilter.size>0&&<button onClick={()=>setLocationColFilter(new Set())} style={{background:"none",border:"none",color:"#316ac5",cursor:"pointer",fontSize:10,textDecoration:"underline"}}>Clear</button>}
+                        <span style={{display:"flex",gap:6}}>
+                          <button onClick={()=>setLocationColFilter(new Set())} style={{background:"none",border:"none",color:"#316ac5",cursor:"pointer",fontSize:10,textDecoration:"underline"}}>All</button>
+                          <button onClick={()=>setLocationColFilter(new Set(["__none__"]))} style={{background:"none",border:"none",color:"#316ac5",cursor:"pointer",fontSize:10,textDecoration:"underline"}}>None</button>
+                        </span>
                       </div>
                       {uniqueLocations.map(loc=>(
                         <label key={loc||"(blank)"} style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",cursor:"pointer",fontSize:11,borderBottom:"1px solid #f0f0f0"}}
@@ -609,9 +616,10 @@ export default function App() {
                           <input type="checkbox" checked={locationColFilter.size===0||locationColFilter.has(loc)}
                             onChange={e=>{
                               const next=new Set(locationColFilter);
-                              if(locationColFilter.size===0){uniqueLocations.forEach(x=>next.add(x));next.delete(loc);}
+                              next.delete("__none__");
+                              if(locationColFilter.size===0||(locationColFilter.size===1&&locationColFilter.has("__none__"))){uniqueLocations.forEach(x=>next.add(x));next.delete(loc);}
                               else if(e.target.checked){next.add(loc);if(next.size===uniqueLocations.length)setLocationColFilter(new Set());else setLocationColFilter(next);return;}
-                              else{next.delete(loc);}
+                              else{next.delete(loc);if(next.size===0)next.add("__none__");}
                               setLocationColFilter(next);
                             }}/>
                           {loc||"(blank)"}
