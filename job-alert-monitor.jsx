@@ -225,6 +225,7 @@ export default function App() {
   const [locationColFilter,setLocationColFilter] = useState(new Set()); // column dropdown filter
   const [showCompanyDd,setShowCompanyDd] = useState(false); // dropdown visibility
   const [showLocationDd,setShowLocationDd] = useState(false); // dropdown visibility
+  const [locInput,setLocInput] = useState(""); // location filter input value
   const [page,setPage] = useState(0);
   const PAGE_SIZE = 50;
   const [newSrc,setNewSrc] = useState({input:"",label:"",detecting:false,detected:null,error:null});
@@ -287,6 +288,8 @@ export default function App() {
   const matchFiltered = matchFilter==="title" ? matched.filter(j=>j.titleMatches.length>0)
                       : matchFilter==="desc"  ? matched.filter(j=>j.descMatches.length>0&&j.titleMatches.length===0)
                       : matched;
+  // All unique locations from matched jobs (for autocomplete suggestions)
+  const allLocations = [...new Set(matched.map(j=>j.location||"").filter(Boolean))].sort();
   // Location keyword filter (left sidebar)
   const locFiltered = locationKeywords.length
     ? matchFiltered.filter(j=>locationKeywords.some(tok=>(j.location||"").toLowerCase().includes(tok.toLowerCase())))
@@ -530,8 +533,27 @@ export default function App() {
                     ))}
                     {!locationKeywords.length&&<span style={{color:"#a0a0a0",fontStyle:"italic"}}>No filter — showing all locations</span>}
                   </div>
-                  {editLocKw&&<input className="inset" placeholder="e.g. Remote, New York + Enter" style={{marginTop:6,width:"100%",padding:"2px 5px"}}
-                    onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){setLocationKeywords([...locationKeywords,e.target.value.trim()]);e.target.value="";}}}/>}
+                  {editLocKw&&<div style={{position:"relative",marginTop:6}}>
+                    <input className="inset" placeholder="e.g. Remote, New York + Enter" style={{width:"100%",padding:"2px 5px"}}
+                      value={locInput} onChange={e=>setLocInput(e.target.value)}
+                      onKeyDown={e=>{if(e.key==="Enter"&&locInput.trim()){setLocationKeywords([...locationKeywords,locInput.trim()]);setLocInput("");}
+                        if(e.key==="Escape")setLocInput("");}}/>
+                    {locInput.trim().length>0&&(()=>{
+                      const suggestions=allLocations.filter(l=>l.toLowerCase().includes(locInput.toLowerCase())&&!locationKeywords.includes(l));
+                      return suggestions.length>0&&(
+                        <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:60,background:"#fff",border:"1px solid #808080",boxShadow:"2px 2px 4px rgba(0,0,0,.2)",maxHeight:160,overflowY:"auto"}}>
+                          {suggestions.slice(0,20).map(s=>(
+                            <div key={s} style={{padding:"3px 8px",cursor:"pointer",fontSize:11,borderBottom:"1px solid #f0f0f0"}}
+                              onMouseEnter={e=>e.currentTarget.style.background="#e8e4dc"}
+                              onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                              onMouseDown={e=>{e.preventDefault();setLocationKeywords([...locationKeywords,s]);setLocInput("");}}>
+                              {s}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>}
                 </div>
               </Grp>
             </div>
