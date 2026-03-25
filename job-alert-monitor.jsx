@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { supabase } from "./src/supabaseClient.js";
 
 const SK = "jobpulse-v2";
 function lsGet(k) { try { const v=localStorage.getItem(k); return v?JSON.parse(v):null; } catch { return null; } }
@@ -11,9 +12,42 @@ const DEFAULT = {
     { id:"tab-2", name:"Film & Entertainment", sources:[],
       keywords:["entertainment marketing","film marketing","studio","theatrical","content marketing","brand partnerships","box office","streaming","film campaign","major studio"] },
   ],
-  notifications:{ email:"",emailjsServiceId:"",emailjsTemplateId:"",emailjsPublicKey:"",emailEnabled:false,phone:"",textbeltKey:"textbelt",smsEnabled:false },
+  notifications:{ email:"",emailEnabled:false,phone:"",textbeltKey:"textbelt",smsEnabled:false },
   pollIntervalMinutes:30, seenJobIds:[], initializedSrcIds:[], alertHistory:[],
 };
+
+// ── Supabase cloud sync helpers ──────────────────────────────────────────────
+async function cloudLoad(userId) {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("user_settings")
+    .select("settings")
+    .eq("user_id", userId)
+    .single();
+  if (error || !data) return null;
+  return data.settings;
+}
+
+async function cloudSave(userId, settings) {
+  if (!supabase) return;
+  await supabase.from("user_settings").upsert(
+    { user_id: userId, settings },
+    { onConflict: "user_id" }
+  );
+}
+
+// ── Server-side email (uses your EmailJS keys stored as Vercel env vars) ─────
+async function sendEmailServer(toEmail, subject, message) {
+  const res = await fetch("/api/send-email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ to_email: toEmail, subject, message }),
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d.error || `Email API HTTP ${res.status}`);
+  }
+}
 
 async function fetchGreenhouse(slug) {
   const res=await fetch(`https://boards-api.greenhouse.io/v1/boards/${slug}/jobs?content=true`);
@@ -153,9 +187,8 @@ function matchJob(job, kws) {
 }
 
 async function sendEmail(n,subject,body) {
-  if(!n.emailjsPublicKey||!n.emailjsServiceId||!n.emailjsTemplateId) throw new Error("EmailJS not configured");
-  const res=await fetch("https://api.emailjs.com/api/v1.0/email/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({service_id:n.emailjsServiceId,template_id:n.emailjsTemplateId,user_id:n.emailjsPublicKey,template_params:{to_email:n.email,subject,message:body}})});
-  if(!res.ok) throw new Error(`EmailJS ${res.status}`);
+  if(!n.email) throw new Error("No email address configured");
+  await sendEmailServer(n.email, subject, body);
 }
 async function sendSMS(n,msg) {
   if(!n.phone) throw new Error("No phone");
@@ -220,6 +253,15 @@ function Divider() { return <div style={{width:1,background:"#7a7a7a",margin:"0 
 
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
+  // ── Auth state ──
+  const [user,setUser]       = useState(null);       // Supabase user object
+  const [authView,setAuthView] = useState("login");  // "login" | "signup"
+  const [authForm,setAuthForm] = useState({email:"",password:""});
+  const [authErr,setAuthErr] = useState(null);
+  const [authLoading,setAuthLoading] = useState(false);
+  const [authChecking,setAuthChecking] = useState(true); // checking session on mount
+
+  // ── App state ──
   const [state,setState]   = useState(()=>lsGet(SK)||DEFAULT);
   const [tabId,setTabId]   = useState(()=>(lsGet(SK)||DEFAULT).tabs[0]?.id);
   const [view,setView]     = useState("listings");
@@ -244,12 +286,101 @@ export default function App() {
   const [perm,setPerm]     = useState(typeof Notification!=="undefined"?Notification.permission:"default");
   const [testSt,setTestSt] = useState(null);
   const [time,setTime]     = useState(new Date());
+  const [syncStatus,setSyncStatus] = useState(null); // null | "saving" | "saved" | "error"
   const stRef=useRef(null); stRef.current=state;
   const timer=useRef(null);
+  const userRef=useRef(null); userRef.current=user;
 
   useEffect(()=>{const t=setInterval(()=>setTime(new Date()),1000);return()=>clearInterval(t);},[]);
 
-  const save=useCallback(ns=>{setState(ns);lsSet(SK,ns);},[]);
+  // ── Auth: check existing session on mount ──
+  useEffect(()=>{
+    if (!supabase) { setAuthChecking(false); return; }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user);
+        // Load cloud settings
+        cloudLoad(session.user.id).then(cloudSettings => {
+          if (cloudSettings) {
+            setState(cloudSettings);
+            setTabId(cloudSettings.tabs?.[0]?.id || DEFAULT.tabs[0].id);
+            lsSet(SK, cloudSettings); // cache locally
+          }
+          setAuthChecking(false);
+        });
+      } else {
+        setAuthChecking(false);
+      }
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // ── Auth actions ──
+  const doLogin = async () => {
+    if (!supabase) return;
+    setAuthLoading(true); setAuthErr(null);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: authForm.email, password: authForm.password
+    });
+    if (error) { setAuthErr(error.message); setAuthLoading(false); return; }
+    // Session will be picked up by onAuthStateChange, load cloud settings
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const cloud = await cloudLoad(session.user.id);
+      if (cloud) {
+        setState(cloud);
+        setTabId(cloud.tabs?.[0]?.id || DEFAULT.tabs[0].id);
+        lsSet(SK, cloud);
+      } else {
+        // First login: push current localStorage settings to cloud
+        const local = lsGet(SK) || DEFAULT;
+        await cloudSave(session.user.id, local);
+      }
+    }
+    setAuthLoading(false);
+    setAuthForm({email:"",password:""});
+  };
+
+  const doSignup = async () => {
+    if (!supabase) return;
+    setAuthLoading(true); setAuthErr(null);
+    const { error } = await supabase.auth.signUp({
+      email: authForm.email, password: authForm.password
+    });
+    if (error) { setAuthErr(error.message); setAuthLoading(false); return; }
+    // After signup, push current settings to cloud
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const local = lsGet(SK) || DEFAULT;
+      await cloudSave(session.user.id, local);
+    }
+    setAuthLoading(false);
+    setAuthForm({email:"",password:""});
+    setAuthErr("Check your email for a confirmation link!");
+  };
+
+  const doLogout = async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
+  // ── Save: localStorage + cloud sync ──
+  const save=useCallback(ns=>{
+    setState(ns);
+    lsSet(SK,ns);
+    const u = userRef.current;
+    if (u && supabase) {
+      setSyncStatus("saving");
+      cloudSave(u.id, ns).then(() => {
+        setSyncStatus("saved");
+        setTimeout(() => setSyncStatus(s => s === "saved" ? null : s), 2000);
+      }).catch(() => setSyncStatus("error"));
+    }
+  },[]);
 
   const runPoll=useCallback(async()=>{
     const st=stRef.current; if(!st) return;
@@ -384,16 +515,63 @@ export default function App() {
         @keyframes xpBar{0%{left:-40%}100%{left:110%}}
       `}</style>
 
+      {/* ── Auth loading screen ── */}
+      {authChecking && supabase && (
+        <div style={{position:"fixed",inset:0,background:"#ece9d8",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
+          <div style={{width:160,height:18,border:"1px solid",borderColor:"#808080 #e0e0e0 #e0e0e0 #808080",overflow:"hidden",background:"#fff",position:"relative"}}>
+            <div style={{position:"absolute",width:"40%",height:"100%",background:"linear-gradient(to right,#1a6fd8,#5ab4f8)",animation:"xpBar 1.2s infinite linear"}}/>
+          </div>
+          <span style={{fontFamily:F,fontSize:11,color:"#444"}}>Loading your settings…</span>
+        </div>
+      )}
+
+      {/* ── Login screen (when Supabase configured but not signed in) ── */}
+      {!authChecking && supabase && !user && (
+        <div style={{position:"fixed",inset:0,background:"#ece9d8",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#ece9d8",border:"3px solid",borderColor:"#0a246a #808080 #808080 #0a246a",width:400}}>
+            <div style={{background:"linear-gradient(to right,#0a246a,#a6caf0)",padding:"4px 6px"}}>
+              <span style={{color:"#fff",fontWeight:"bold",fontSize:12}}>🎯 JobPulse — Sign In</span>
+            </div>
+            <div style={{padding:20,display:"flex",flexDirection:"column",gap:12}}>
+              <p style={{color:"#444",lineHeight:1.5}}>Sign in to access your job alerts and settings. Your configuration syncs across all your devices.</p>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <label>Email<br/><Inp value={authForm.email} onChange={e=>setAuthForm(f=>({...f,email:e.target.value}))} type="email" placeholder="you@email.com"/></label>
+                <label>Password<br/><Inp value={authForm.password} onChange={e=>setAuthForm(f=>({...f,password:e.target.value}))} type="password" placeholder="Password"
+                  onKeyDown={e=>{if(e.key==="Enter"){authView==="login"?doLogin():doSignup();}}}/></label>
+              </div>
+              {authErr&&<div style={{padding:"6px 8px",background:authErr.includes("Check your email")?"#f0fff0":"#fff0f0",border:authErr.includes("Check your email")?"1px solid #008000":"1px solid #cc0000",color:authErr.includes("Check your email")?"#008000":"#cc0000",fontSize:11}}>{authErr}</div>}
+              <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+                {authView==="login" ? (
+                  <>
+                    <Btn primary onClick={doLogin} disabled={authLoading}>{authLoading?"Signing in…":"Sign In"}</Btn>
+                    <Btn onClick={()=>{setAuthView("signup");setAuthErr(null);}}>Create Account</Btn>
+                  </>
+                ) : (
+                  <>
+                    <Btn primary onClick={doSignup} disabled={authLoading}>{authLoading?"Creating…":"Create Account"}</Btn>
+                    <Btn onClick={()=>{setAuthView("login");setAuthErr(null);}}>Back to Sign In</Btn>
+                  </>
+                )}
+              </div>
+              <p style={{color:"#808080",fontSize:10,textAlign:"center"}}>Your settings, sources, and alert history are stored securely in the cloud.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Title bar ── */}
       <div style={{background:"linear-gradient(to right,#0a246a 0%,#3a6fc8 40%,#a6caf0 100%)",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",gap:7}}>
           <span style={{fontSize:15}}>🎯</span>
           <span style={{fontWeight:"bold",color:"#fff",textShadow:"1px 1px 2px rgba(0,0,0,.7)",fontSize:12}}>JobPulse — Job Alert Monitor</span>
         </div>
-        <div style={{display:"flex",gap:2}}>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          {user&&<span style={{color:"#d0e0ff",fontSize:10}}>{user.email}{syncStatus==="saving"?" · ☁ saving…":syncStatus==="saved"?" · ☁ saved":""}</span>}
+          <div style={{display:"flex",gap:2}}>
           {[{ch:"─",title:"Minimize"},{ch:"□",title:"Maximize"},{ch:"✕",title:"Close"}].map(({ch,title})=>(
             <button key={ch} title={title} style={{width:21,height:21,background:"linear-gradient(to bottom,#e0e8f8,#7090b8)",border:"1px solid",borderColor:"#fff #404060 #404060 #fff",color:"#000",fontWeight:"bold",cursor:"pointer",fontSize:ch==="✕"?10:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>{ch}</button>
           ))}
+          </div>
         </div>
       </div>
 
@@ -728,7 +906,7 @@ export default function App() {
         {view==="history"&&(
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",padding:8,background:"#ece9d8"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <span><b>Alert History</b> — {(state.alertHistory||[]).length} total · localStorage · {lsKB}</span>
+              <span><b>Alert History</b> — {(state.alertHistory||[]).length} total · {user?"☁ cloud":"localStorage"} · {lsKB}</span>
               {(state.alertHistory||[]).length>0&&<Btn danger onClick={()=>save({...state,alertHistory:[]})}>🗑 Clear All</Btn>}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"120px 2fr 1fr 1fr 100px",background:"linear-gradient(to bottom,#f0ede4,#dedad0)",borderBottom:"1px solid #a0a0a0",flexShrink:0}}>
@@ -792,22 +970,15 @@ export default function App() {
                 <p style={{color:"#808080"}}>Instant desktop popups when new matches are found, even if tab is backgrounded.</p>
               </Grp>
 
-              <Grp title="📧 Email via EmailJS (free · 200/month)">
+              <Grp title="📧 Email Alerts">
                 <label style={{display:"flex",alignItems:"center",gap:5,marginBottom:8,cursor:"pointer"}}>
                   <input type="checkbox" checked={state.notifications.emailEnabled} onChange={e=>upNotif({emailEnabled:e.target.checked})}/>
                   Enable email alerts
                 </label>
-                <div style={{background:"#fffce0",border:"1px solid #c8b800",padding:"6px 8px",marginBottom:8,lineHeight:1.6}}>
-                  <b>Setup:</b> emailjs.com → account → Add Email Service → Create Template with <code>to_email</code>, <code>subject</code>, <code>message</code> → paste IDs below.
-                </div>
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   <label>Recipient Email<br/><Inp value={state.notifications.email} onChange={e=>upNotif({email:e.target.value})} type="email" placeholder="you@email.com"/></label>
-                  <label>Public Key<br/><Inp value={state.notifications.emailjsPublicKey} onChange={e=>upNotif({emailjsPublicKey:e.target.value})} placeholder="user_xxxxxxxxxxxx"/></label>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                    <label>Service ID<br/><Inp value={state.notifications.emailjsServiceId} onChange={e=>upNotif({emailjsServiceId:e.target.value})} placeholder="service_xxxxxxx"/></label>
-                    <label>Template ID<br/><Inp value={state.notifications.emailjsTemplateId} onChange={e=>upNotif({emailjsTemplateId:e.target.value})} placeholder="template_xxxxxxx"/></label>
-                  </div>
                 </div>
+                <p style={{color:"#808080",marginTop:6}}>Emails are sent automatically when new matching jobs are found. No API key needed.</p>
               </Grp>
 
               <Grp title="📱 SMS via Textbelt ($0.01/text)">
@@ -824,8 +995,41 @@ export default function App() {
                 </div>
               </Grp>
 
+              {supabase && (
+                <Grp title="👤 Account">
+                  {user ? (
+                    <div>
+                      <p style={{marginBottom:8}}>Signed in as <b>{user.email}</b></p>
+                      <p style={{marginBottom:8,color:"#808080"}}>Your settings sync across all devices automatically.</p>
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <Btn onClick={doLogout}>Sign Out</Btn>
+                        {syncStatus==="saving"&&<span style={{color:"#808080"}}>☁ Saving…</span>}
+                        {syncStatus==="saved"&&<span style={{color:"#008000"}}>☁ Saved</span>}
+                        {syncStatus==="error"&&<span style={{color:"#cc0000"}}>☁ Sync error</span>}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p style={{marginBottom:8,color:"#808080"}}>Sign in to sync settings across devices.</p>
+                      <div style={{display:"flex",flexDirection:"column",gap:6,maxWidth:300}}>
+                        <Inp value={authForm.email} onChange={e=>setAuthForm(f=>({...f,email:e.target.value}))} type="email" placeholder="Email"/>
+                        <Inp value={authForm.password} onChange={e=>setAuthForm(f=>({...f,password:e.target.value}))} type="password" placeholder="Password"/>
+                        <div style={{display:"flex",gap:8}}>
+                          <Btn primary onClick={doLogin} disabled={authLoading}>{authLoading?"…":"Sign In"}</Btn>
+                          <Btn onClick={doSignup} disabled={authLoading}>{authLoading?"…":"Create Account"}</Btn>
+                        </div>
+                        {authErr&&<span style={{color:authErr.includes("Check your email")?"#008000":"#cc0000",fontSize:11}}>{authErr}</span>}
+                      </div>
+                    </div>
+                  )}
+                </Grp>
+              )}
+
               <Grp title="💾 Data & Storage">
-                <p style={{marginBottom:8}}>Stored in <b>localStorage</b> · {lsKB} used · persists until you clear browser data.</p>
+                <p style={{marginBottom:8}}>
+                  {user ? "Settings saved to cloud and cached locally" : "Stored in localStorage"} · {lsKB} used
+                  {user && <span> · <span style={{color:"#008000"}}>☁ synced</span></span>}
+                </p>
                 <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
                   <Btn primary onClick={doTest} disabled={testSt==="sending"}>{testSt==="sending"?"Sending…":"🔔 Send Test Alert"}</Btn>
                   <Btn danger onClick={()=>{if(window.confirm("Clear ALL JobPulse data? Cannot be undone.")){localStorage.removeItem(SK);setState(DEFAULT);setTabId(DEFAULT.tabs[0].id);}}}>🗑 Clear All Data</Btn>
@@ -845,7 +1049,7 @@ export default function App() {
         </div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{(activeTab?.sources||[]).length} source{(activeTab?.sources||[]).length!==1?"s":""}</div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{matched.length} match{matched.length!==1?"es":""}{(matchFilter!=="all"||locationKeywords.length||companyFilter.size||locationColFilter.size)?` · ${filtered.length} shown`:""}</div>
-        <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>💾 {lsKB}</div>
+        <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{user?"☁":"💾"} {lsKB}</div>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px"}}>{perm==="granted"?"🔔 Notifications on":"🔕 Notifications off"}</div>
       </div>
 
