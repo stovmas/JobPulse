@@ -287,6 +287,7 @@ export default function App() {
   const [testSt,setTestSt] = useState(null);
   const [time,setTime]     = useState(new Date());
   const [syncStatus,setSyncStatus] = useState(null); // null | "saving" | "saved" | "error"
+  const [showMobileSidebar,setShowMobileSidebar] = useState(false); // mobile panel toggle
   const stRef=useRef(null); stRef.current=state;
   const timer=useRef(null);
   const userRef=useRef(null); userRef.current=user;
@@ -513,6 +514,35 @@ export default function App() {
         .row-even:hover,.row-odd:hover{background:#316ac5;color:#fff;}
         a{color:#0000ee;}
         @keyframes xpBar{0%{left:-40%}100%{left:110%}}
+        @media(max-width:768px){
+          .desktop-only{display:none!important;}
+          .mobile-toolbar{flex-wrap:wrap;}
+          .mobile-toolbar .toolbar-spacer{display:none;}
+          .listings-grid{grid-template-columns:1fr!important;}
+          .sidebar-panel{border-right:none!important;border-bottom:1px solid #a0a0a0;}
+          .job-grid-header{display:none!important;}
+          .job-grid-row{display:flex!important;flex-direction:column!important;padding:10px 12px!important;gap:4px!important;border-bottom:1px solid #d0ccc4!important;}
+          .job-grid-row>div{padding:0!important;border:none!important;white-space:normal!important;}
+          .history-header{display:none!important;}
+          .history-row{display:flex!important;flex-direction:column!important;padding:10px 12px!important;gap:4px!important;border-bottom:1px solid #d0ccc4!important;}
+          .history-row>div{padding:0!important;border:none!important;}
+          .filter-bar{flex-direction:column;align-items:flex-start!important;gap:4px!important;}
+          .status-bar{flex-wrap:wrap;}
+          .status-bar>div{flex:none!important;}
+          .cat-tabs{flex-wrap:wrap;}
+          .mobile-sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:90;}
+          .mobile-sidebar-drawer{position:fixed;left:0;top:0;bottom:0;width:85vw;max-width:340px;z-index:91;background:#ece9d8;overflow-y:auto;padding:8px;box-shadow:3px 0 10px rgba(0,0,0,.3);}
+          .poll-status-text{display:none!important;}
+          .mobile-show{display:inline-flex!important;}
+          input,select{font-size:16px!important;}
+          .dialog-box{width:calc(100vw - 24px)!important;max-width:480px!important;}
+          .login-box{width:calc(100vw - 24px)!important;max-width:400px!important;}
+          .settings-page{padding:8px!important;}
+          .settings-page>div{max-width:100%!important;}
+          .poll-interval-row{flex-wrap:wrap;gap:8px!important;}
+          .win-buttons{display:none!important;}
+          .user-email-bar{display:none!important;}
+        }
       `}</style>
 
       {/* ── Auth loading screen ── */}
@@ -528,7 +558,7 @@ export default function App() {
       {/* ── Login screen (when Supabase configured but not signed in) ── */}
       {!authChecking && supabase && !user && (
         <div style={{position:"fixed",inset:0,background:"#ece9d8",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#ece9d8",border:"3px solid",borderColor:"#0a246a #808080 #808080 #0a246a",width:400}}>
+          <div className="login-box" style={{background:"#ece9d8",border:"3px solid",borderColor:"#0a246a #808080 #808080 #0a246a",width:400}}>
             <div style={{background:"linear-gradient(to right,#0a246a,#a6caf0)",padding:"4px 6px"}}>
               <span style={{color:"#fff",fontWeight:"bold",fontSize:12}}>🎯 JobPulse — Sign In</span>
             </div>
@@ -566,8 +596,8 @@ export default function App() {
           <span style={{fontWeight:"bold",color:"#fff",textShadow:"1px 1px 2px rgba(0,0,0,.7)",fontSize:12}}>JobPulse — Job Alert Monitor</span>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          {user&&<span style={{color:"#d0e0ff",fontSize:10}}>{user.email}{syncStatus==="saving"?" · ☁ saving…":syncStatus==="saved"?" · ☁ saved":""}</span>}
-          <div style={{display:"flex",gap:2}}>
+          {user&&<span className="user-email-bar" style={{color:"#d0e0ff",fontSize:10}}>{user.email}{syncStatus==="saving"?" · ☁ saving…":syncStatus==="saved"?" · ☁ saved":""}</span>}
+          <div className="win-buttons" style={{display:"flex",gap:2}}>
           {[{ch:"─",title:"Minimize"},{ch:"□",title:"Maximize"},{ch:"✕",title:"Close"}].map(({ch,title})=>(
             <button key={ch} title={title} style={{width:21,height:21,background:"linear-gradient(to bottom,#e0e8f8,#7090b8)",border:"1px solid",borderColor:"#fff #404060 #404060 #fff",color:"#000",fontWeight:"bold",cursor:"pointer",fontSize:ch==="✕"?10:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>{ch}</button>
           ))}
@@ -576,7 +606,7 @@ export default function App() {
       </div>
 
       {/* ── Menu bar ── */}
-      <div style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"2px 4px",display:"flex",gap:0,flexShrink:0}}>
+      <div className="desktop-only" style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"2px 4px",display:"flex",gap:0,flexShrink:0}}>
         {["File","Edit","View","Alerts","Help"].map(m=>(
           <button key={m} style={{background:"none",border:"none",padding:"2px 8px",cursor:"pointer",color:"#000"}}
             onMouseEnter={e=>{e.target.style.background="#316ac5";e.target.style.color="#fff";}}
@@ -585,16 +615,16 @@ export default function App() {
       </div>
 
       {/* ── Toolbar ── */}
-      <div style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"3px 4px",display:"flex",gap:3,alignItems:"center",flexShrink:0}}>
-        <Btn onClick={runPoll} disabled={poll.running}>{poll.running?"⏳ Polling…":"🔄 Refresh Now"}</Btn>
+      <div className="mobile-toolbar" style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"3px 4px",display:"flex",gap:3,alignItems:"center",flexShrink:0}}>
+        <Btn onClick={runPoll} disabled={poll.running}>{poll.running?"⏳ Polling…":"🔄 Refresh"}</Btn>
         <Divider/>
         <Btn onClick={()=>setAddSrc(true)}>📡 Add Company</Btn>
         <Btn onClick={()=>setAddTab(true)}>📁 New Category</Btn>
         {state.tabs.length>1&&<Btn danger onClick={()=>rmTab(tabId)}>✕ Remove Tab</Btn>}
         <Divider/>
-        <Btn onClick={()=>{const b=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="jobpulse.json";a.click();}}>💾 Export</Btn>
-        <Btn onClick={async()=>setPerm(await Notification.requestPermission())}>{perm==="granted"?"🔔 Notifs: ON":"🔕 Enable Notifs"}</Btn>
-        <div style={{flex:1}}/>
+        <span className="desktop-only"><Btn onClick={()=>{const b=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="jobpulse.json";a.click();}}>💾 Export</Btn></span>
+        <span className="desktop-only"><Btn onClick={async()=>setPerm(await Notification.requestPermission())}>{perm==="granted"?"🔔 Notifs: ON":"🔕 Enable Notifs"}</Btn></span>
+        <div className="toolbar-spacer" style={{flex:1}}/>
         {/* Poll status */}
         <div style={{display:"flex",alignItems:"center",gap:8,paddingRight:4}}>
           {poll.running&&(
@@ -603,13 +633,13 @@ export default function App() {
             </div>
           )}
           {poll.errors.length>0&&<span style={{color:"#cc0000"}}>⚠ {poll.errors.length} error{poll.errors.length>1?"s":""}</span>}
-          {poll.last&&!poll.running&&<span style={{color:"#444"}}>Last: {ago(poll.last)}{poll.next?` · Next: ${fmt(poll.next)}`:""}</span>}
+          {poll.last&&!poll.running&&<span className="poll-status-text" style={{color:"#444"}}>Last: {ago(poll.last)}{poll.next?` · Next: ${fmt(poll.next)}`:""}</span>}
           <span style={{color:"#444",borderLeft:"1px solid #a0a0a0",paddingLeft:8}}>{time.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</span>
         </div>
       </div>
 
       {/* ── Address bar ── */}
-      <div style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"2px 4px",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+      <div className="desktop-only" style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"2px 4px",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
         <span style={{color:"#000",whiteSpace:"nowrap"}}>Address:</span>
         <div className="inset" style={{flex:1,padding:"1px 5px",lineHeight:"18px"}}>
           C:\JobPulse\{activeTab?.name || ""}\{view}
@@ -618,7 +648,7 @@ export default function App() {
       </div>
 
       {/* ── Category tabs ── */}
-      <div style={{background:"#ece9d8",borderBottom:"2px solid #808080",display:"flex",alignItems:"flex-end",paddingLeft:4,paddingTop:4,flexShrink:0}}>
+      <div className="cat-tabs" style={{background:"#ece9d8",borderBottom:"2px solid #808080",display:"flex",alignItems:"flex-end",paddingLeft:4,paddingTop:4,flexShrink:0}}>
         {state.tabs.map(tab=>{
           const active=tab.id===tabId;
           const cnt=(state.alertHistory||[]).filter(a=>a.tabName===tab.name).length;
@@ -656,10 +686,78 @@ export default function App() {
 
         {/* ═══ LISTINGS ═══ */}
         {view==="listings"&&(
-          <div style={{display:"grid",gridTemplateColumns:"270px 1fr",flex:1,overflow:"hidden"}}>
+          <div className="listings-grid" style={{display:"grid",gridTemplateColumns:"270px 1fr",flex:1,overflow:"hidden"}}>
 
-            {/* Left panel */}
-            <div style={{borderRight:"1px solid #a0a0a0",padding:8,overflowY:"auto",background:"#ece9d8"}}>
+            {/* Mobile sidebar drawer */}
+            {showMobileSidebar&&<>
+              <div className="mobile-sidebar-overlay" onClick={()=>setShowMobileSidebar(false)}/>
+              <div className="mobile-sidebar-drawer">
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <b>Filters & Sources</b>
+                  <Btn small onClick={()=>setShowMobileSidebar(false)}>✕ Close</Btn>
+                </div>
+                {/* Duplicate sidebar content for mobile drawer */}
+                <Grp title={`📡 Sources (${(activeTab?.sources||[]).length})`}>
+                  <Btn onClick={()=>{setAddSrc(true);setShowMobileSidebar(false);}} style={{width:"100%",marginBottom:6}}>➕ Add Company</Btn>
+                  {(activeTab?.sources||[]).length===0?(
+                    <div className="inset" style={{padding:10,textAlign:"center",color:"#808080"}}>No companies added yet</div>
+                  ):(activeTab?.sources||[]).map(s=>{
+                    const jobs=live[s.id],cnt=jobs?.filter(j=>matchJob(j,activeTab.keywords||[]).matched).length??null;
+                    const err=poll.errors.find(e=>e.id===s.id);
+                    const ATS_COLORS={greenhouse:"#3a7a3a",lever:"#1a4fa0",ashby:"#a04040",smartrecruiters:"#c87800",recruitee:"#5a3a8a",workable:"#1a7a7a",scrape:"#b00010"};
+                    const col=ATS_COLORS[s.atsType]||"#808080";
+                    return (
+                      <div key={s.id} className="raised" style={{padding:"5px 7px",marginBottom:4,background:"#f8f6f0"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                          <div><b>{s.label||s.companyName||s.slug}</b><span style={{marginLeft:5,background:col,color:"#fff",padding:"0 5px",fontSize:9,fontWeight:"bold"}}>{s.atsType}</span></div>
+                          <Btn small danger onClick={()=>upTab("sources",(activeTab?.sources||[]).filter(x=>x.id!==s.id))}>✕</Btn>
+                        </div>
+                        <div style={{color:err?"#cc0000":cnt>0?"#008000":"#808080",marginTop:2}}>
+                          {err?`⚠ ${err.msg.slice(0,34)}`:jobs===undefined?"Pending…":`${jobs.length} jobs · ${cnt} matched`}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </Grp>
+                <Grp title="🔍 Keywords">
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                    <span style={{color:"#555",fontSize:10}}>Matched against title & desc</span>
+                    <Btn small onClick={()=>setEditKw(!editKw)}>{editKw?"✓ Done":"✏ Edit"}</Btn>
+                  </div>
+                  <div className="inset" style={{padding:5,minHeight:48,background:"#fff",marginBottom:editKw?6:0}}>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                      {(activeTab?.keywords||[]).map((kw,i)=>(
+                        <span key={i} style={{background:"#316ac5",color:"#fff",padding:"1px 7px",display:"inline-flex",alignItems:"center",gap:3,fontSize:11}}>
+                          {kw}
+                          {editKw&&<button onClick={()=>upTab("keywords",(activeTab.keywords||[]).filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:"#ffcccc",cursor:"pointer",padding:0,fontSize:12,lineHeight:1}}>✕</button>}
+                        </span>
+                      ))}
+                      {!(activeTab?.keywords||[]).length&&<span style={{color:"#a0a0a0",fontStyle:"italic"}}>No keywords</span>}
+                    </div>
+                    {editKw&&<input className="inset" placeholder="Type keyword + Enter" style={{marginTop:6,width:"100%",padding:"2px 5px"}}
+                      onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){upTab("keywords",[...(activeTab.keywords||[]),e.target.value.trim()]);e.target.value="";}}}/>}
+                  </div>
+                </Grp>
+                <Grp title="📍 Location Filter">
+                  <div className="inset" style={{padding:5,minHeight:36,background:"#fff"}}>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                      {locationKeywords.map((kw,i)=>(
+                        <span key={i} style={{background:"#3a7a3a",color:"#fff",padding:"1px 7px",display:"inline-flex",alignItems:"center",gap:3,fontSize:11}}>
+                          {kw}
+                          <button onClick={()=>setLocationKeywords(locationKeywords.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:"#ccffcc",cursor:"pointer",padding:0,fontSize:12,lineHeight:1}}>✕</button>
+                        </span>
+                      ))}
+                      {!locationKeywords.length&&<span style={{color:"#a0a0a0",fontStyle:"italic"}}>No filter</span>}
+                    </div>
+                    <input className="inset" placeholder="e.g. Remote, New York + Enter" style={{marginTop:6,width:"100%",padding:"2px 5px"}}
+                      onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){setLocationKeywords([...locationKeywords,e.target.value.trim()]);e.target.value="";}}}/>
+                  </div>
+                </Grp>
+              </div>
+            </>}
+
+            {/* Left panel (desktop) */}
+            <div className="sidebar-panel desktop-only" style={{borderRight:"1px solid #a0a0a0",padding:8,overflowY:"auto",background:"#ece9d8"}}>
 
               <Grp title={`📡 Sources (${(activeTab?.sources||[]).length})`}>
                 <Btn onClick={()=>setAddSrc(true)} style={{width:"100%",marginBottom:6}}>➕ Add Company</Btn>
@@ -752,7 +850,9 @@ export default function App() {
             <div style={{display:"flex",flexDirection:"column",overflow:"hidden"}}>
 
               {/* Filter bar */}
-              <div style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"3px 6px",display:"flex",alignItems:"center",gap:8,flexShrink:0,flexWrap:"wrap"}}>
+              <div className="filter-bar" style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"3px 6px",display:"flex",alignItems:"center",gap:8,flexShrink:0,flexWrap:"wrap"}}>
+                {/* Mobile: sidebar toggle */}
+                <button className="mobile-show" onClick={()=>setShowMobileSidebar(true)} style={{display:"none",fontFamily:F,fontSize:11,cursor:"pointer",padding:"1px 8px",height:20,border:"none",background:"linear-gradient(to bottom,#f8f8f8,#e0e0e0)",boxShadow:"inset -1px -1px 0 #7a7a7a,inset 1px 1px 0 #fff,inset -2px -2px 0 #a0a0a0,inset 2px 2px 0 #e8e8e8",alignItems:"center",gap:4}}>☰ Filters</button>
                 <span style={{color:"#444",marginRight:2}}>Show:</span>
                 {[["all","All Matches"],["title","🏷 Title Match Only"],["desc","📄 Desc Match Only"]].map(([val,label])=>(
                   <label key={val} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer"}}>
@@ -768,7 +868,7 @@ export default function App() {
               </div>
 
               {/* Column headers with Excel-style dropdown filters */}
-              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 120px 140px 80px",background:"linear-gradient(to bottom,#f0ede4,#dedad0)",borderBottom:"1px solid #a0a0a0",flexShrink:0}}>
+              <div className="job-grid-header" style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 120px 140px 80px",background:"linear-gradient(to bottom,#f0ede4,#dedad0)",borderBottom:"1px solid #a0a0a0",flexShrink:0}}>
                 <div style={{padding:"3px 8px",borderRight:"1px solid #a0a0a0",fontWeight:"bold",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>Job Title</div>
 
                 {/* Company dropdown filter */}
@@ -859,25 +959,25 @@ export default function App() {
                 ):paginated.map((job,i)=>{
                   const pay=extractPay(job);
                   return (
-                  <div key={job.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 120px 140px 80px",borderBottom:"1px solid #e8e4dc",background:i%2===0?"#fff":"#f4f2ec",cursor:"default"}}
-                    onMouseEnter={e=>e.currentTarget.style.background="#316ac5"}
-                    onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#fff":"#f4f2ec"}>
+                  <div className="job-grid-row" key={job.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 120px 140px 80px",borderBottom:"1px solid #e8e4dc",background:i%2===0?"#fff":"#f4f2ec",cursor:"default"}}
+                    onMouseEnter={e=>{if(window.innerWidth>768)e.currentTarget.style.background="#316ac5"}}
+                    onMouseLeave={e=>{if(window.innerWidth>768)e.currentTarget.style.background=i%2===0?"#fff":"#f4f2ec"}}>
                     <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",overflow:"hidden"}}>
-                      <div style={{fontWeight:"bold",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{job.title}</div>
+                      <div style={{fontWeight:"bold",overflow:"hidden",textOverflow:"ellipsis"}}>{job.title}</div>
                       <div style={{display:"flex",flexWrap:"wrap",gap:2,marginTop:2}}>
                         {job.titleMatches.map(k=><span key={k} style={{background:"#316ac5",color:"#fff",padding:"0 5px",fontSize:10}}>🏷 {k}</span>)}
                         {job.descMatches.map(k=><span key={k} style={{background:"#808080",color:"#fff",padding:"0 5px",fontSize:10}}>📄 {k}</span>)}
                       </div>
                     </div>
-                    <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{job.company}</div>
-                    <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:"#555"}}>{job.location}</div>
-                    <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:pay?"#008000":"#c0c0c0",fontSize:pay?11:10}}>{pay||"—"}</div>
+                    <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",overflow:"hidden",textOverflow:"ellipsis"}}>{job.company}</div>
+                    <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",overflow:"hidden",textOverflow:"ellipsis",color:"#555"}}>{job.location}</div>
+                    <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",overflow:"hidden",textOverflow:"ellipsis",color:pay?"#008000":"#c0c0c0",fontSize:pay?11:10}}>{pay||"—"}</div>
                     <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4",overflow:"hidden"}}>
                       {job.titleMatches.length>0&&<span style={{background:"#ddeeff",border:"1px solid #316ac5",color:"#316ac5",padding:"0 5px",fontSize:10,fontWeight:"bold",marginRight:3}}>TITLE</span>}
                       {job.descMatches.length>0&&<span style={{background:"#eee",border:"1px solid #808080",color:"#555",padding:"0 5px",fontSize:10}}>DESC</span>}
                       {job.url&&<a href={job.url} target="_blank" rel="noopener noreferrer" style={{marginLeft:4,fontSize:10}}>Open →</a>}
                     </div>
-                    <div style={{padding:"4px 8px",color:"#808080",whiteSpace:"nowrap"}}>{ago(job.postedAt)}</div>
+                    <div style={{padding:"4px 8px",color:"#808080"}}>{ago(job.postedAt)}</div>
                   </div>
                   );
                 })}
@@ -909,7 +1009,7 @@ export default function App() {
               <span><b>Alert History</b> — {(state.alertHistory||[]).length} total · {user?"☁ cloud":"localStorage"} · {lsKB}</span>
               {(state.alertHistory||[]).length>0&&<Btn danger onClick={()=>save({...state,alertHistory:[]})}>🗑 Clear All</Btn>}
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"120px 2fr 1fr 1fr 100px",background:"linear-gradient(to bottom,#f0ede4,#dedad0)",borderBottom:"1px solid #a0a0a0",flexShrink:0}}>
+            <div className="history-header" style={{display:"grid",gridTemplateColumns:"120px 2fr 1fr 1fr 100px",background:"linear-gradient(to bottom,#f0ede4,#dedad0)",borderBottom:"1px solid #a0a0a0",flexShrink:0}}>
               {["Category","Job Title","Company","Keywords","Time"].map((h,i)=>(
                 <div key={h} style={{padding:"3px 8px",borderRight:i<4?"1px solid #a0a0a0":"none",fontWeight:"bold"}}>{h}</div>
               ))}
@@ -918,9 +1018,9 @@ export default function App() {
               {(state.alertHistory||[]).length===0?(
                 <div style={{padding:40,textAlign:"center",color:"#808080"}}><div style={{fontSize:48,marginBottom:10}}>📭</div>No alerts yet. They'll appear here when new matching jobs are found.</div>
               ):(state.alertHistory||[]).map((a,i)=>(
-                <div key={a.id} style={{display:"grid",gridTemplateColumns:"120px 2fr 1fr 1fr 100px",borderBottom:"1px solid #e8e4dc",background:i%2===0?"#fff":"#f4f2ec"}}
-                  onMouseEnter={e=>e.currentTarget.style.background="#316ac5"}
-                  onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#fff":"#f4f2ec"}>
+                <div className="history-row" key={a.id} style={{display:"grid",gridTemplateColumns:"120px 2fr 1fr 1fr 100px",borderBottom:"1px solid #e8e4dc",background:i%2===0?"#fff":"#f4f2ec"}}
+                  onMouseEnter={e=>{if(window.innerWidth>768)e.currentTarget.style.background="#316ac5"}}
+                  onMouseLeave={e=>{if(window.innerWidth>768)e.currentTarget.style.background=i%2===0?"#fff":"#f4f2ec"}}>
                   <div style={{padding:"4px 8px",borderRight:"1px solid #e0dcd4"}}>
                     <span style={{background:"#316ac5",color:"#fff",padding:"0 6px",fontSize:10,fontWeight:"bold"}}>{a.tabName}</span>
                     <div style={{marginTop:2}}>
@@ -947,11 +1047,11 @@ export default function App() {
 
         {/* ═══ SETTINGS ═══ */}
         {view==="settings"&&(
-          <div style={{flex:1,overflowY:"auto",padding:12,background:"#ece9d8"}}>
+          <div className="settings-page" style={{flex:1,overflowY:"auto",padding:12,background:"#ece9d8"}}>
             <div style={{maxWidth:560}}>
 
               <Grp title="⏱ Poll Interval">
-                <div style={{display:"flex",gap:16,marginBottom:6}}>
+                <div className="poll-interval-row" style={{display:"flex",gap:16,marginBottom:6}}>
                   {[15,30,60,120].map(m=>(
                     <label key={m} style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}>
                       <input type="radio" name="interval" checked={state.pollIntervalMinutes===m} onChange={()=>save({...state,pollIntervalMinutes:m})}/>
@@ -1043,7 +1143,7 @@ export default function App() {
       </div>
 
       {/* ── Status bar ── */}
-      <div style={{background:"#ece9d8",borderTop:"1px solid #a0a0a0",padding:"2px 4px",display:"flex",gap:6,flexShrink:0}}>
+      <div className="status-bar" style={{background:"#ece9d8",borderTop:"1px solid #a0a0a0",padding:"2px 4px",display:"flex",gap:6,flexShrink:0}}>
         <div style={{border:"1px solid",borderColor:"#808080 #e8e8e8 #e8e8e8 #808080",padding:"1px 8px",flex:1}}>
           {poll.running?"🔄 Fetching jobs from all sources…":poll.last?`✅ Last polled: ${ago(poll.last)}`:"Ready — add companies and click Refresh Now"}
         </div>
@@ -1056,7 +1156,7 @@ export default function App() {
       {/* ── Add Source dialog ── */}
       {addSrc&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.35)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#ece9d8",border:"3px solid",borderColor:"#0a246a #808080 #808080 #0a246a",width:480}}>
+          <div className="dialog-box" style={{background:"#ece9d8",border:"3px solid",borderColor:"#0a246a #808080 #808080 #0a246a",width:480}}>
             <div style={{background:"linear-gradient(to right,#0a246a,#a6caf0)",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <span style={{color:"#fff",fontWeight:"bold",fontSize:12}}>📡 Add Company to "{activeTab?.name}"</span>
               <button onClick={()=>{setAddSrc(false);resetSrcDialog();}} style={{width:21,height:21,background:"linear-gradient(to bottom,#e0e8f8,#7090b8)",border:"1px solid",borderColor:"#fff #404060 #404060 #fff",cursor:"pointer",fontWeight:"bold",fontSize:10}}>✕</button>
@@ -1111,7 +1211,7 @@ export default function App() {
       {/* ── Add Tab dialog ── */}
       {addTab&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.35)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#ece9d8",border:"3px solid",borderColor:"#0a246a #808080 #808080 #0a246a",width:360}}>
+          <div className="dialog-box" style={{background:"#ece9d8",border:"3px solid",borderColor:"#0a246a #808080 #808080 #0a246a",width:360}}>
             <div style={{background:"linear-gradient(to right,#0a246a,#a6caf0)",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <span style={{color:"#fff",fontWeight:"bold",fontSize:12}}>📁 New Alert Category</span>
               <button onClick={()=>setAddTab(false)} style={{width:21,height:21,background:"linear-gradient(to bottom,#e0e8f8,#7090b8)",border:"1px solid",borderColor:"#fff #404060 #404060 #fff",cursor:"pointer",fontWeight:"bold",fontSize:10}}>✕</button>
