@@ -256,7 +256,7 @@ export default function App() {
   // ── Auth state ──
   const [user,setUser]       = useState(null);       // Supabase user object
   const [authView,setAuthView] = useState("login");  // "login" | "signup"
-  const [authForm,setAuthForm] = useState({email:"",password:""});
+  const [authForm,setAuthForm] = useState({email:"",password:"",firstName:"",lastName:""});
   const [authErr,setAuthErr] = useState(null);
   const [authLoading,setAuthLoading] = useState(false);
   const [authChecking,setAuthChecking] = useState(true); // checking session on mount
@@ -342,14 +342,15 @@ export default function App() {
       }
     }
     setAuthLoading(false);
-    setAuthForm({email:"",password:""});
+    setAuthForm({email:"",password:"",firstName:"",lastName:""});
   };
 
   const doSignup = async () => {
     if (!supabase) return;
     setAuthLoading(true); setAuthErr(null);
     const { error } = await supabase.auth.signUp({
-      email: authForm.email, password: authForm.password
+      email: authForm.email, password: authForm.password,
+      options: { data: { first_name: authForm.firstName, last_name: authForm.lastName } }
     });
     if (error) { setAuthErr(error.message); setAuthLoading(false); return; }
     // After signup, push current settings to cloud
@@ -359,7 +360,7 @@ export default function App() {
       await cloudSave(session.user.id, local);
     }
     setAuthLoading(false);
-    setAuthForm({email:"",password:""});
+    setAuthForm({email:"",password:"",firstName:"",lastName:""});
     setAuthErr("Check your email for a confirmation link!");
   };
 
@@ -565,6 +566,12 @@ export default function App() {
             <div style={{padding:20,display:"flex",flexDirection:"column",gap:12}}>
               <p style={{color:"#444",lineHeight:1.5}}>Sign in to access your job alerts and settings. Your configuration syncs across all your devices.</p>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {authView==="signup"&&(
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                    <label>First Name<br/><Inp value={authForm.firstName} onChange={e=>setAuthForm(f=>({...f,firstName:e.target.value}))} placeholder="John"/></label>
+                    <label>Last Name<br/><Inp value={authForm.lastName} onChange={e=>setAuthForm(f=>({...f,lastName:e.target.value}))} placeholder="Doe"/></label>
+                  </div>
+                )}
                 <label>Email<br/><Inp value={authForm.email} onChange={e=>setAuthForm(f=>({...f,email:e.target.value}))} type="email" placeholder="you@email.com"/></label>
                 <label>Password<br/><Inp value={authForm.password} onChange={e=>setAuthForm(f=>({...f,password:e.target.value}))} type="password" placeholder="Password"
                   onKeyDown={e=>{if(e.key==="Enter"){authView==="login"?doLogin():doSignup();}}}/></label>
@@ -1099,7 +1106,7 @@ export default function App() {
                 <Grp title="👤 Account">
                   {user ? (
                     <div>
-                      <p style={{marginBottom:8}}>Signed in as <b>{user.email}</b></p>
+                      <p style={{marginBottom:8}}>Signed in as <b>{user.user_metadata?.first_name ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ""}`.trim() : user.email}</b>{user.user_metadata?.first_name && <span style={{color:"#808080"}}> ({user.email})</span>}</p>
                       <p style={{marginBottom:8,color:"#808080"}}>Your settings sync across all devices automatically.</p>
                       <div style={{display:"flex",gap:8,alignItems:"center"}}>
                         <Btn onClick={doLogout}>Sign Out</Btn>
@@ -1112,6 +1119,10 @@ export default function App() {
                     <div>
                       <p style={{marginBottom:8,color:"#808080"}}>Sign in to sync settings across devices.</p>
                       <div style={{display:"flex",flexDirection:"column",gap:6,maxWidth:300}}>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                          <Inp value={authForm.firstName} onChange={e=>setAuthForm(f=>({...f,firstName:e.target.value}))} placeholder="First Name"/>
+                          <Inp value={authForm.lastName} onChange={e=>setAuthForm(f=>({...f,lastName:e.target.value}))} placeholder="Last Name"/>
+                        </div>
                         <Inp value={authForm.email} onChange={e=>setAuthForm(f=>({...f,email:e.target.value}))} type="email" placeholder="Email"/>
                         <Inp value={authForm.password} onChange={e=>setAuthForm(f=>({...f,password:e.target.value}))} type="password" placeholder="Password"/>
                         <div style={{display:"flex",gap:8}}>
