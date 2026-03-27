@@ -370,6 +370,16 @@ export default function App() {
     setUser(null);
   };
 
+  const doForgotPassword = async () => {
+    if (!supabase) return;
+    if (!authForm.email) { setAuthErr("Enter your email address first."); return; }
+    setAuthLoading(true); setAuthErr(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(authForm.email);
+    setAuthLoading(false);
+    if (error) { setAuthErr(error.message); return; }
+    setAuthErr("Password reset link sent! Check your email.");
+  };
+
   // ── Save: localStorage + cloud sync ──
   const save=useCallback(ns=>{
     setState(ns);
@@ -590,6 +600,7 @@ export default function App() {
                   </>
                 )}
               </div>
+              {authView==="login"&&<div style={{textAlign:"center"}}><button onClick={doForgotPassword} disabled={authLoading} style={{background:"none",border:"none",color:"#316ac5",cursor:"pointer",fontSize:11,textDecoration:"underline",fontFamily:F}}>{authLoading?"Sending…":"Forgot password?"}</button></div>}
               <p style={{color:"#808080",fontSize:10,textAlign:"center"}}>Your settings, sources, and alert history are stored securely in the cloud.</p>
             </div>
           </div>
@@ -605,8 +616,8 @@ export default function App() {
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           {user&&<span className="user-email-bar" style={{color:"#d0e0ff",fontSize:10}}>{user.email}{syncStatus==="saving"?" · ☁ saving…":syncStatus==="saved"?" · ☁ saved":""}</span>}
           <div className="win-buttons" style={{display:"flex",gap:2}}>
-          {[{ch:"─",title:"Minimize"},{ch:"□",title:"Maximize"},{ch:"✕",title:"Close"}].map(({ch,title})=>(
-            <button key={ch} title={title} style={{width:21,height:21,background:"linear-gradient(to bottom,#e0e8f8,#7090b8)",border:"1px solid",borderColor:"#fff #404060 #404060 #fff",color:"#000",fontWeight:"bold",cursor:"pointer",fontSize:ch==="✕"?10:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>{ch}</button>
+          {[{ch:"─",title:"Minimize"},{ch:"□",title:"Maximize"},{ch:"✕",title:"Sign Out"}].map(({ch,title})=>(
+            <button key={ch} title={title} onClick={ch==="✕"?doLogout:undefined} style={{width:21,height:21,background:"linear-gradient(to bottom,#e0e8f8,#7090b8)",border:"1px solid",borderColor:"#fff #404060 #404060 #fff",color:"#000",fontWeight:"bold",cursor:"pointer",fontSize:ch==="✕"?10:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>{ch}</button>
           ))}
           </div>
         </div>
