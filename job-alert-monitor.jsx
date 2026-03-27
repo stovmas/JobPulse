@@ -348,11 +348,17 @@ export default function App() {
   const doSignup = async () => {
     if (!supabase) return;
     setAuthLoading(true); setAuthErr(null);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: authForm.email, password: authForm.password,
       options: { data: { first_name: authForm.firstName, last_name: authForm.lastName } }
     });
     if (error) { setAuthErr(error.message); setAuthLoading(false); return; }
+    // Supabase returns a user with empty identities if the email already exists
+    if (data?.user?.identities?.length === 0) {
+      setAuthErr("An account with this email already exists. Try signing in instead.");
+      setAuthLoading(false);
+      return;
+    }
     // After signup, push current settings to cloud
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
