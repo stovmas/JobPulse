@@ -494,7 +494,6 @@ export default function App() {
   useEffect(()=>{
     const handler=e=>{
       if(!e.target.closest('.col-dropdown')){setShowCompanyDd(false);setShowLocationDd(false);}
-      if(!e.target.closest('.menu-bar')){setMenuOpen(null);}
     };
     document.addEventListener("mousedown",handler);
     return()=>document.removeEventListener("mousedown",handler);
@@ -691,7 +690,7 @@ export default function App() {
       </div>
 
       {/* ── Menu bar ── */}
-      <div className="desktop-only menu-bar" style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"2px 4px",display:"flex",gap:0,flexShrink:0,position:"relative",zIndex:80}}>
+      <div className="desktop-only menu-bar" style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"2px 4px",display:"flex",gap:0,flexShrink:0,position:"relative",zIndex:80}} onMouseLeave={()=>setMenuOpen(null)}>
 
         {/* File */}
         <div style={{position:"relative"}}>
