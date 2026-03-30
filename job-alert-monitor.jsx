@@ -288,6 +288,7 @@ export default function App() {
   const [showMobileSidebar,setShowMobileSidebar] = useState(false); // mobile panel toggle
   const [showOnboarding,setShowOnboarding] = useState(false); // intro popup
   const [onboardStep,setOnboardStep] = useState(0); // current onboarding step
+  const [menuOpen,setMenuOpen] = useState(null); // "file" | "help" | "about" | null
   const stRef=useRef(null); stRef.current=state;
   const timer=useRef(null);
   const userRef=useRef(null); userRef.current=user;
@@ -493,6 +494,7 @@ export default function App() {
   useEffect(()=>{
     const handler=e=>{
       if(!e.target.closest('.col-dropdown')){setShowCompanyDd(false);setShowLocationDd(false);}
+      if(!e.target.closest('.menu-bar')){setMenuOpen(null);}
     };
     document.addEventListener("mousedown",handler);
     return()=>document.removeEventListener("mousedown",handler);
@@ -689,12 +691,63 @@ export default function App() {
       </div>
 
       {/* ── Menu bar ── */}
-      <div className="desktop-only" style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"2px 4px",display:"flex",gap:0,flexShrink:0}}>
-        {["File","Edit","View","Alerts","Help"].map(m=>(
-          <button key={m} style={{background:"none",border:"none",padding:"2px 8px",cursor:"pointer",color:"#000"}}
-            onMouseEnter={e=>{e.target.style.background="#316ac5";e.target.style.color="#fff";}}
-            onMouseLeave={e=>{e.target.style.background="none";e.target.style.color="#000";}}>{m}</button>
-        ))}
+      <div className="desktop-only menu-bar" style={{background:"#ece9d8",borderBottom:"1px solid #a0a0a0",padding:"2px 4px",display:"flex",gap:0,flexShrink:0,position:"relative",zIndex:80}}>
+
+        {/* File */}
+        <div style={{position:"relative"}}>
+          <button onMouseEnter={()=>setMenuOpen("file")} onClick={()=>setMenuOpen(m=>m==="file"?null:"file")}
+            style={{background:menuOpen==="file"?"#316ac5":"none",color:menuOpen==="file"?"#fff":"#000",border:"none",padding:"2px 8px",cursor:"pointer",fontFamily:F,fontSize:11}}>File</button>
+          {menuOpen==="file"&&(
+            <div style={{position:"absolute",top:"100%",left:0,background:"#ece9d8",border:"1px solid",borderColor:"#e8e8e8 #808080 #808080 #e8e8e8",minWidth:140,boxShadow:"2px 2px 4px rgba(0,0,0,.2)",zIndex:81}}>
+              <button onClick={()=>{setMenuOpen(null);doLogout();}}
+                style={{display:"block",width:"100%",textAlign:"left",padding:"4px 20px",background:"none",border:"none",cursor:"pointer",fontFamily:F,fontSize:11,color:"#000"}}
+                onMouseEnter={e=>{e.currentTarget.style.background="#316ac5";e.currentTarget.style.color="#fff";}}
+                onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="#000";}}>
+                Sign Out
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Help */}
+        <div style={{position:"relative"}}>
+          <button onMouseEnter={()=>setMenuOpen("help")} onClick={()=>setMenuOpen(m=>m==="help"?null:"help")}
+            style={{background:menuOpen==="help"?"#316ac5":"none",color:menuOpen==="help"?"#fff":"#000",border:"none",padding:"2px 8px",cursor:"pointer",fontFamily:F,fontSize:11}}>Help</button>
+          {menuOpen==="help"&&(
+            <div style={{position:"absolute",top:"100%",left:0,background:"#ece9d8",border:"1px solid",borderColor:"#e8e8e8 #808080 #808080 #e8e8e8",minWidth:140,boxShadow:"2px 2px 4px rgba(0,0,0,.2)",zIndex:81}}>
+              <button onClick={()=>{setMenuOpen(null);setOnboardStep(0);setShowOnboarding(true);}}
+                style={{display:"block",width:"100%",textAlign:"left",padding:"4px 20px",background:"none",border:"none",cursor:"pointer",fontFamily:F,fontSize:11}}
+                onMouseEnter={e=>{e.currentTarget.style.background="#316ac5";e.currentTarget.style.color="#fff";}}
+                onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="#000";}}>
+                Tutorial
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* About */}
+        <div style={{position:"relative"}}>
+          <button onMouseEnter={()=>setMenuOpen("about")} onClick={()=>setMenuOpen(m=>m==="about"?null:"about")}
+            style={{background:menuOpen==="about"?"#316ac5":"none",color:menuOpen==="about"?"#fff":"#000",border:"none",padding:"2px 8px",cursor:"pointer",fontFamily:F,fontSize:11}}>About</button>
+          {menuOpen==="about"&&(
+            <div style={{position:"absolute",top:"100%",left:0,background:"#ece9d8",border:"1px solid",borderColor:"#e8e8e8 #808080 #808080 #e8e8e8",minWidth:180,boxShadow:"2px 2px 4px rgba(0,0,0,.2)",zIndex:81}}>
+              <div style={{padding:"6px 20px 4px",fontFamily:F,fontSize:11,color:"#555",borderBottom:"1px solid #c0bab0"}}>Developed by Sam Tovmasian</div>
+              <a href="https://www.linkedin.com/in/tovmasian/" target="_blank" rel="noopener noreferrer"
+                style={{display:"block",padding:"4px 20px",fontFamily:F,fontSize:11,color:"#000",textDecoration:"none"}}
+                onMouseEnter={e=>{e.currentTarget.style.background="#316ac5";e.currentTarget.style.color="#fff";}}
+                onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="#000";}}>
+                Connect on LinkedIn ↗
+              </a>
+              <a href="mailto:s.tovmas@gmail.com?subject=JobPulse Feedback"
+                style={{display:"block",padding:"4px 20px",fontFamily:F,fontSize:11,color:"#000",textDecoration:"none"}}
+                onMouseEnter={e=>{e.currentTarget.style.background="#316ac5";e.currentTarget.style.color="#fff";}}
+                onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="#000";}}>
+                Send Feedback
+              </a>
+            </div>
+          )}
+        </div>
+
       </div>
 
       {/* ── Toolbar ── */}
