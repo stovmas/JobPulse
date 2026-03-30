@@ -340,9 +340,11 @@ export default function App() {
         lsSet(SK, cloud);
         if (!cloud.onboarded) setShowOnboarding(true);
       } else {
-        // First login: push current localStorage settings to cloud
-        const local = lsGet(SK) || DEFAULT;
-        await cloudSave(session.user.id, local);
+        // First login: start fresh with defaults
+        setState(DEFAULT);
+        setTabId(DEFAULT.tabs[0].id);
+        lsSet(SK, DEFAULT);
+        await cloudSave(session.user.id, DEFAULT);
         setShowOnboarding(true);
       }
     }
@@ -365,11 +367,13 @@ export default function App() {
       setAuthLoading(false);
       return;
     }
-    // After signup, push current settings to cloud
+    // After signup, start fresh with defaults
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
-      const local = lsGet(SK) || DEFAULT;
-      await cloudSave(session.user.id, local);
+      setState(DEFAULT);
+      setTabId(DEFAULT.tabs[0].id);
+      lsSet(SK, DEFAULT);
+      await cloudSave(session.user.id, DEFAULT);
     }
     setAuthLoading(false);
     setAuthForm({email:"",password:"",firstName:"",lastName:""});
@@ -380,6 +384,10 @@ export default function App() {
     if (!supabase) return;
     await supabase.auth.signOut();
     setUser(null);
+    setState(DEFAULT);
+    setTabId(DEFAULT.tabs[0].id);
+    lsSet(SK, DEFAULT);
+    setLive({});
   };
 
   const doForgotPassword = async () => {
