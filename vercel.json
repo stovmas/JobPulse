@@ -3,5 +3,8 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/cron-poll", "schedule": "0 * * * *" }
   ]
 }

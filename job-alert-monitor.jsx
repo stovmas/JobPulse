@@ -420,7 +420,13 @@ export default function App() {
   },[]);
 
   const runPoll=useCallback(async()=>{
-    const st=stRef.current; if(!st) return;
+    // Sync from cloud first so we don't duplicate alerts the cron already sent
+    const u=userRef.current;
+    let st=stRef.current; if(!st) return;
+    if(u&&supabase){
+      const cloud=await cloudLoad(u.id);
+      if(cloud){st=cloud;setState(cloud);stRef.current=cloud;lsSet(SK,cloud);}
+    }
     setPoll(p=>({...p,running:true,errors:[]}));
     const srcs=[...new Map(st.tabs.flatMap(t=>t.sources).map(s=>[s.id,s])).values()];
     const fetched={},errs=[];
@@ -786,9 +792,10 @@ export default function App() {
       <div className="cat-tabs" style={{background:"#ece9d8",borderBottom:"2px solid #808080",display:"flex",alignItems:"flex-end",paddingLeft:4,paddingTop:4,flexShrink:0}}>
         {state.tabs.map(tab=>{
           const active=tab.id===tabId;
-          const cnt=(state.alertHistory||[]).filter(a=>a.tabName===tab.name).length;
+          const lastSeen=tab.lastSeenAt||0;
+          const cnt=(state.alertHistory||[]).filter(a=>a.tabName===tab.name&&new Date(a.alertedAt).getTime()>lastSeen).length;
           return (
-            <button key={tab.id} onClick={()=>{setTabId(tab.id);setView("listings");}} style={{
+            <button key={tab.id} onClick={()=>{setTabId(tab.id);setView("listings");save({...state,tabs:state.tabs.map(t=>t.id===tab.id?{...t,lastSeenAt:Date.now()}:t)});}} style={{
               fontFamily:F,fontSize:11,cursor:"pointer",padding:"4px 14px 3px",border:"1px solid",marginRight:2,
               borderColor:active?"#e8e8e8 #808080 #ece9d8 #e8e8e8":"#e8e8e8 #808080 #808080 #e8e8e8",
               background:active?"#ece9d8":"linear-gradient(to bottom,#d8d4cc,#c8c4bc)",
@@ -1213,7 +1220,7 @@ export default function App() {
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   <label>Recipient Email<br/><Inp value={state.notifications.email} onChange={e=>upNotif({email:e.target.value})} type="email" placeholder="you@email.com"/></label>
                 </div>
-                <p style={{color:"#808080",marginTop:6}}>Emails are sent automatically when new matching jobs are found. No API key needed.</p>
+                <p style={{color:"#808080",marginTop:6}}>Emails are sent automatically when new matching jobs are found — even if this tab is closed. No API key needed.</p>
               </Grp>
 
               <Grp title="📱 SMS via Textbelt ($0.01/text)">
