@@ -7,13 +7,10 @@ function lsSet(k,v) { try { localStorage.setItem(k,JSON.stringify(v)); return tr
 
 const DEFAULT = {
   tabs: [
-    { id:"tab-1", name:"Sales", sources:[],
-      keywords:["account executive","AE","SDR","BDR","sales development","business development","inside sales","enterprise sales","commission","pipeline","CRM","cold calling","OTE"] },
-    { id:"tab-2", name:"Film & Entertainment", sources:[],
-      keywords:["entertainment marketing","film marketing","studio","theatrical","content marketing","brand partnerships","box office","streaming","film campaign","major studio"] },
+    { id:"tab-1", name:"My Search", sources:[], keywords:[] },
   ],
   notifications:{ email:"",emailEnabled:false,phone:"",textbeltKey:"textbelt",smsEnabled:false },
-  pollIntervalMinutes:30, seenJobIds:[], initializedSrcIds:[], alertHistory:[],
+  pollIntervalMinutes:30, seenJobIds:[], initializedSrcIds:[], alertHistory:[], onboarded:false,
 };
 
 // ── Supabase cloud sync helpers ──────────────────────────────────────────────
@@ -156,6 +153,7 @@ async function autoDetectATS(raw) {
     // ── Known scrape-able custom job boards ──
     const SCRAPE_BOARDS = [
       { match: h => h === "jobs.netflix.com", label:"Netflix" },
+      { match: h => h.includes("wpp.com"), label:"WPP" },
     ];
     for (const board of SCRAPE_BOARDS) {
       if (board.match(host)) return { atsType:"scrape", slug:maybeUrl, label:board.label };
@@ -288,6 +286,8 @@ export default function App() {
   const [time,setTime]     = useState(new Date());
   const [syncStatus,setSyncStatus] = useState(null); // null | "saving" | "saved" | "error"
   const [showMobileSidebar,setShowMobileSidebar] = useState(false); // mobile panel toggle
+  const [showOnboarding,setShowOnboarding] = useState(false); // intro popup
+  const [onboardStep,setOnboardStep] = useState(0); // current onboarding step
   const stRef=useRef(null); stRef.current=state;
   const timer=useRef(null);
   const userRef=useRef(null); userRef.current=user;
@@ -305,7 +305,10 @@ export default function App() {
           if (cloudSettings) {
             setState(cloudSettings);
             setTabId(cloudSettings.tabs?.[0]?.id || DEFAULT.tabs[0].id);
-            lsSet(SK, cloudSettings); // cache locally
+            lsSet(SK, cloudSettings);
+            if (!cloudSettings.onboarded) setShowOnboarding(true);
+          } else {
+            setShowOnboarding(true);
           }
           setAuthChecking(false);
         });
@@ -335,10 +338,12 @@ export default function App() {
         setState(cloud);
         setTabId(cloud.tabs?.[0]?.id || DEFAULT.tabs[0].id);
         lsSet(SK, cloud);
+        if (!cloud.onboarded) setShowOnboarding(true);
       } else {
         // First login: push current localStorage settings to cloud
         const local = lsGet(SK) || DEFAULT;
         await cloudSave(session.user.id, local);
+        setShowOnboarding(true);
       }
     }
     setAuthLoading(false);
@@ -609,6 +614,47 @@ export default function App() {
               </div>
               {authView==="login"&&<div style={{textAlign:"center"}}><button onClick={doForgotPassword} disabled={authLoading} style={{background:"none",border:"none",color:"#316ac5",cursor:"pointer",fontSize:11,textDecoration:"underline",fontFamily:F}}>{authLoading?"Sending…":"Forgot password?"}</button></div>}
               <p style={{color:"#808080",fontSize:10,textAlign:"center"}}>Your settings, sources, and alert history are stored securely in the cloud.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Onboarding intro popup ── */}
+      {showOnboarding&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:9997,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div className="dialog-box" style={{background:"#ece9d8",border:"3px solid",borderColor:"#0a246a #808080 #808080 #0a246a",width:500}}>
+            <div style={{background:"linear-gradient(to right,#0a246a,#a6caf0)",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <span style={{color:"#fff",fontWeight:"bold",fontSize:12}}>🎯 Welcome to JobPulse!</span>
+              <button onClick={()=>{setShowOnboarding(false);save({...state,onboarded:true});}} style={{width:21,height:21,background:"linear-gradient(to bottom,#e0e8f8,#7090b8)",border:"1px solid",borderColor:"#fff #404060 #404060 #fff",cursor:"pointer",fontWeight:"bold",fontSize:10}}>✕</button>
+            </div>
+            <div style={{padding:20}}>
+              {(()=>{
+                const steps = [
+                  {title:"1. Add Companies to Monitor", icon:"📡", desc:"Click \"Add Company\" and paste a careers page URL or type a company name. JobPulse auto-detects which job platform they use (Greenhouse, Lever, Ashby, and more)."},
+                  {title:"2. Set Your Keywords", icon:"🔍", desc:"Add keywords that match the roles you're looking for (e.g. \"product manager\", \"marketing\", \"remote\"). JobPulse scans every job title and description for matches."},
+                  {title:"3. Get Alerted Automatically", icon:"🔔", desc:"JobPulse polls for new jobs on your schedule. Enable email or browser notifications in Settings and you'll be alerted the moment a matching job is posted."},
+                  {title:"4. Organize with Categories", icon:"📁", desc:"Create tabs for different job searches — one for marketing roles, another for engineering, etc. Each tab has its own companies and keywords."},
+                ];
+                const step = steps[onboardStep];
+                return (
+                  <div>
+                    <div style={{textAlign:"center",fontSize:40,marginBottom:8}}>{step.icon}</div>
+                    <div style={{fontWeight:"bold",fontSize:13,marginBottom:8,textAlign:"center"}}>{step.title}</div>
+                    <p style={{color:"#444",lineHeight:1.6,textAlign:"center",marginBottom:16}}>{step.desc}</p>
+                    {/* Step dots */}
+                    <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:16}}>
+                      {[0,1,2,3].map(i=>(
+                        <div key={i} style={{width:8,height:8,borderRadius:"50%",background:i===onboardStep?"#316ac5":"#c0c0c0",cursor:"pointer"}} onClick={()=>setOnboardStep(i)}/>
+                      ))}
+                    </div>
+                    <div style={{display:"flex",justifyContent:"center",gap:8}}>
+                      {onboardStep>0&&<Btn onClick={()=>setOnboardStep(s=>s-1)}>◀ Back</Btn>}
+                      {onboardStep<3?<Btn primary onClick={()=>setOnboardStep(s=>s+1)}>Next ▶</Btn>
+                        :<Btn primary onClick={()=>{setShowOnboarding(false);setOnboardStep(0);save({...state,onboarded:true});}}>Get Started!</Btn>}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -1195,10 +1241,10 @@ export default function App() {
               <label>
                 <b>Paste the careers URL or type the company name:</b>
                 <div style={{display:"flex",gap:6,marginTop:4}}>
-                  <Inp value={newSrc.input} onChange={e=>setNewSrc(s=>({...s,input:e.target.value,detected:null,error:null}))} placeholder="e.g. jobs.lever.co/netflix  or  anthropic" style={{flex:1}}/>
+                  <Inp value={newSrc.input} onChange={e=>setNewSrc(s=>({...s,input:e.target.value,detected:null,error:null}))} placeholder="e.g. jobs.lever.co/wpp  or  anthropic" style={{flex:1}}/>
                   <Btn primary onClick={detectSrc} disabled={!newSrc.input.trim()||newSrc.detecting}>{newSrc.detecting?"…":"Detect"}</Btn>
                 </div>
-                <div style={{color:"#808080",marginTop:4}}>Auto-detects: Greenhouse · Lever · Ashby · SmartRecruiters · Recruitee · Workable · Custom (Netflix…)</div>
+                <div style={{color:"#808080",marginTop:4}}>Auto-detects: Greenhouse · Lever · Ashby · SmartRecruiters · Recruitee · Workable · Custom (WPP…)</div>
               </label>
 
               {newSrc.detecting&&(
@@ -1213,7 +1259,7 @@ export default function App() {
               {newSrc.error&&(
                 <div style={{background:"#fff0f0",border:"1px solid #cc0000",padding:"8px 10px",color:"#555",lineHeight:1.6}}>
                   <b style={{color:"#cc0000"}}>⚠ Not found on any supported platform.</b><br/>
-                  This company likely uses Workday or iCIMS, which require credentials and have no public API. Supported custom boards: Netflix (jobs.netflix.com). Try setting up a job alert directly on their careers page or on LinkedIn.
+                  This company likely uses Workday or iCIMS, which require credentials and have no public API. Supported custom boards: WPP, Netflix. Try setting up a job alert directly on their careers page or on LinkedIn.
                 </div>
               )}
 
