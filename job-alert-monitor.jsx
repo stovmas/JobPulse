@@ -370,11 +370,15 @@ export default function App() {
     // After signup, start fresh with defaults
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
+      // Email confirmation disabled — session is live immediately
       setState(DEFAULT);
       setTabId(DEFAULT.tabs[0].id);
       lsSet(SK, DEFAULT);
       await cloudSave(session.user.id, DEFAULT);
+      setShowOnboarding(true);
     }
+    // If email confirmation is enabled, no session yet — onboarding will
+    // fire on first login because cloud settings will have onboarded:false
     setAuthLoading(false);
     setAuthForm({email:"",password:"",firstName:"",lastName:""});
     setAuthErr("Check your email for a confirmation link!");
