@@ -347,6 +347,7 @@ export default function App() {
 
   const doSignup = async () => {
     if (!supabase) return;
+    if (!authForm.firstName.trim() || !authForm.lastName.trim()) { setAuthErr("First name and last name are required."); return; }
     setAuthLoading(true); setAuthErr(null);
     const { data, error } = await supabase.auth.signUp({
       email: authForm.email, password: authForm.password,
